@@ -18,20 +18,20 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRY_HOURS: int = 72
 
-    # Twilio SMS
-    TWILIO_ACCOUNT_SID: str
-    TWILIO_AUTH_TOKEN: str
-    TWILIO_FROM_NUMBER: str
+    # AWS (auto-discovered from IAM role in production, set manually for local dev)
+    AWS_REGION: str = "us-east-2"
+    AWS_ACCESS_KEY_ID: str | None = None  # local dev only
+    AWS_SECRET_ACCESS_KEY: str | None = None  # local dev only
 
-    # Resend Email
-    RESEND_API_KEY: str
-    RESEND_FROM_EMAIL: str
+    # AWS SES Email
+    SES_FROM_EMAIL: str = "alerts@stormleads.com"
+    SES_REGION: str = "us-east-2"
+
+    # AWS SNS SMS
+    SNS_REGION: str = "us-east-1"
 
     # Census API
     CENSUS_API_KEY: str
-
-    # Monitoring (optional)
-    SENTRY_DSN: str | None = None
 
     # CORS
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"

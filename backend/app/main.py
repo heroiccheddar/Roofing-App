@@ -37,5 +37,5 @@ app.add_middleware(
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint for Railway."""
+    """Health check endpoint for App Runner."""
     return {"status": "healthy", "service": "stormleads-api"}

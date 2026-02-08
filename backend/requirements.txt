@@ -22,13 +22,14 @@ httpx==0.28.*
 python-jose[cryptography]==3.3.*
 passlib[bcrypt]==1.7.*
 
+# AWS SDK
+boto3==1.35.*                    # SES email, SNS SMS, CloudWatch logging
+
 # External Services
-twilio==9.*
-resend==2.*
-upstash-redis==1.*
+upstash-redis==1.*               # HTTP-based Redis client (Upstash)
 
 # Monitoring
-sentry-sdk[fastapi]==2.*
+watchtower==3.*                  # CloudWatch Logs handler for Python logging
 
 # Dev/Test
 pytest==8.*

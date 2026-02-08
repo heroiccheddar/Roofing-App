@@ -1,0 +1,42 @@
+# AWS CloudFormation template for StormLeads infrastructure
+# Optional IaC — set up manually via console first, codify later.
+#
+# Resources defined here:
+# - App Runner service (backend API)
+# - Amplify app (frontend hosting)
+# - SES domain identity + DKIM
+# - SNS SMS configuration
+# - Route 53 hosted zone
+# - CloudWatch log group + alarms
+# - IAM role for App Runner instance
+#
+# TODO: Implement after manual console setup proves working.
+# See MVP-IMPLEMENTATION-PLAN 2.0.md for manual setup steps.
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: StormLeads MVP Infrastructure (placeholder)
+
+Parameters:
+  NeonDatabaseUrl:
+    Type: String
+    NoEcho: true
+    Description: Neon PostgreSQL connection string
+  UpstashRedisUrl:
+    Type: String
+    NoEcho: true
+    Description: Upstash Redis REST URL
+  UpstashRedisToken:
+    Type: String
+    NoEcho: true
+    Description: Upstash Redis REST token
+  JwtSecret:
+    Type: String
+    NoEcho: true
+    Description: JWT signing secret
+  DomainName:
+    Type: String
+    Default: stormleads.com
+    Description: Root domain name
+
+Resources: {}
+# TODO: Define resources after manual setup is validated
