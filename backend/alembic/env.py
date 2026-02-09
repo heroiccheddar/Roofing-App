@@ -3,12 +3,17 @@
 import asyncio
 import os
 from logging.config import fileConfig
+from pathlib import Path
 
+from dotenv import load_dotenv
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
+
+# Load .env from backend directory
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 # Import Base and all models for autogenerate support
 from app.database import Base
@@ -30,8 +35,16 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # Set SQLAlchemy URL from environment variable
+# Ensure the asyncpg driver is specified for Neon connections
 database_url = os.getenv("DATABASE_URL")
 if database_url:
+    # Normalize to asyncpg driver if plain postgresql:// is provided
+    if database_url.startswith("postgresql://"):
+        database_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    elif database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql+asyncpg://", 1)
+    # asyncpg uses 'ssl' not 'sslmode' — convert for compatibility
+    database_url = database_url.replace("sslmode=require", "ssl=require")
     config.set_main_option("sqlalchemy.url", database_url)
 
 # Target metadata for autogenerate

@@ -4,6 +4,7 @@ Tests weight configuration, serialization, score band classification,
 and predicted conversion rate lookups.
 """
 
+import math
 import pytest
 from datetime import datetime
 from app.scoring.weights import (
@@ -44,7 +45,7 @@ class TestLeadQualityWeights:
             median_year_built=0.25,
             housing_density=0.10,
         )
-        assert weights.sum() == 1.0
+        assert math.isclose(weights.sum(), 1.0)
 
 
 class TestCompositeWeights:
@@ -286,9 +287,9 @@ class TestCurrentModelVersion:
 
     def test_all_weights_sum_to_one(self):
         """Test that all v1.0.0 weight groups sum to 1.0."""
-        assert CURRENT_MODEL_VERSION.damage_weights.sum() == 1.0
-        assert CURRENT_MODEL_VERSION.lead_quality_weights.sum() == 1.0
-        assert CURRENT_MODEL_VERSION.composite_weights.sum() == 1.0
+        assert math.isclose(CURRENT_MODEL_VERSION.damage_weights.sum(), 1.0)
+        assert math.isclose(CURRENT_MODEL_VERSION.lead_quality_weights.sum(), 1.0)
+        assert math.isclose(CURRENT_MODEL_VERSION.composite_weights.sum(), 1.0)
 
     def test_validate_passes(self):
         """Test that v1.0.0 passes validation."""

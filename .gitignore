@@ -48,9 +48,7 @@ htmlcov/
 *.sqlite3
 
 # Alembic
-# Keep the versions directory but ignore migration files (except .gitkeep)
-backend/alembic/versions/*.py
-!backend/alembic/versions/.gitkeep
+backend/alembic/versions/__pycache__/
 
 # Node
 node_modules/
