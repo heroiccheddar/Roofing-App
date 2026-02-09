@@ -30,7 +30,7 @@ REPORT_TYPES = {
     "hail": {
         "event_type": "hail",
         "value_column": "Size",
-        "conversion": lambda x: float(x) if x and x != "UNK" else None,  # inches
+        "conversion": lambda x: float(x) / 100.0 if x and x != "UNK" else None,  # hundredths of inch → inches
         "field": "hail_diameter",
     },
     "wind": {

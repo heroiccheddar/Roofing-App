@@ -12,13 +12,15 @@ const BAND_COLORS: Record<string, string> = {
   hot: '#EF4444',    // Red
   warm: '#F97316',   // Orange
   cool: '#EAB308',   // Yellow
-  skip: '#9CA3AF',   // Gray
+  skip: '#6366F1',   // Indigo (visible on light basemap)
 }
 
 function MapView() {
   const mapContainer = useRef<HTMLDivElement>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
+  const fittedRef = useRef(false)
   const { data: geojson } = useZonesGeoJSON()
+  const selectedZoneId = useAppStore((s) => s.selectedZoneId)
   const setSelectedZoneId = useAppStore((s) => s.setSelectedZoneId)
 
   useEffect(() => {
@@ -52,9 +54,9 @@ function MapView() {
             'warm', BAND_COLORS.warm,
             'cool', BAND_COLORS.cool,
             'skip', BAND_COLORS.skip,
-            '#9CA3AF', // default
+            '#6366F1', // default
           ],
-          'fill-opacity': 0.4,
+          'fill-opacity': 0.55,
         },
       })
 
@@ -70,10 +72,34 @@ function MapView() {
             'warm', BAND_COLORS.warm,
             'cool', BAND_COLORS.cool,
             'skip', BAND_COLORS.skip,
-            '#6B7280',
+            '#6366F1',
           ],
-          'line-width': 2,
+          'line-width': 3,
         },
+      })
+
+      // Highlight fill for selected zone
+      map.addLayer({
+        id: 'zones-highlight-fill',
+        type: 'fill',
+        source: 'zones',
+        paint: {
+          'fill-color': '#00BFFF',
+          'fill-opacity': 0.25,
+        },
+        filter: ['==', ['get', 'id'], ''],
+      })
+
+      // Highlight outline for selected zone
+      map.addLayer({
+        id: 'zones-highlight-outline',
+        type: 'line',
+        source: 'zones',
+        paint: {
+          'line-color': '#00BFFF',
+          'line-width': 3,
+        },
+        filter: ['==', ['get', 'id'], ''],
       })
 
       // Click handler for zones
@@ -104,7 +130,7 @@ function MapView() {
     }
   }, [setSelectedZoneId])
 
-  // Update GeoJSON data when it changes
+  // Update GeoJSON data when it changes, fit bounds on first load
   useEffect(() => {
     const map = mapRef.current
     if (!map || !geojson) return
@@ -113,7 +139,64 @@ function MapView() {
     if (source) {
       source.setData(geojson as any)
     }
+
+    // Fit map to zone bounds on first data load
+    if (!fittedRef.current && geojson.features && geojson.features.length > 0) {
+      fittedRef.current = true
+      const bounds = new mapboxgl.LngLatBounds()
+      for (const feature of geojson.features) {
+        const coords = (feature.geometry as any).coordinates
+        if (!coords) continue
+        // Polygon: coords[0] is the outer ring
+        for (const ring of coords) {
+          for (const coord of Array.isArray(ring[0]) ? ring : [ring]) {
+            if (Array.isArray(coord) && coord.length >= 2) {
+              bounds.extend([coord[0], coord[1]] as [number, number])
+            }
+          }
+        }
+      }
+      if (!bounds.isEmpty()) {
+        map.fitBounds(bounds, { padding: 80, maxZoom: 12 })
+      }
+    }
   }, [geojson])
+
+  // Update highlight filter when selection changes
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    const filter: any = selectedZoneId
+      ? ['==', ['get', 'id'], selectedZoneId]
+      : ['==', ['get', 'id'], '']
+    if (map.getLayer('zones-highlight-fill')) {
+      map.setFilter('zones-highlight-fill', filter)
+    }
+    if (map.getLayer('zones-highlight-outline')) {
+      map.setFilter('zones-highlight-outline', filter)
+    }
+  }, [selectedZoneId])
+
+  // Fly to zone when selected from sidebar
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !selectedZoneId || !geojson?.features) return
+
+    const feature = geojson.features.find(
+      (f: any) => f.properties?.id === selectedZoneId
+    )
+    if (!feature) return
+
+    const coords = (feature.geometry as any).coordinates
+    if (!coords?.[0]) return
+
+    // Compute centroid from polygon ring
+    const ring = coords[0] as [number, number][]
+    const lon = ring.reduce((s, c) => s + c[0], 0) / ring.length
+    const lat = ring.reduce((s, c) => s + c[1], 0) / ring.length
+
+    map.flyTo({ center: [lon, lat], zoom: 11, duration: 1000 })
+  }, [selectedZoneId, geojson])
 
   return <div ref={mapContainer} style={{ width: '100%', height: '100%' }} />
 }

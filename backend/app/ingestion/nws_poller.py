@@ -14,7 +14,7 @@ from datetime import datetime
 from typing import Any
 
 import httpx
-from shapely.geometry import Point, Polygon, shape
+from shapely.geometry import MultiPolygon, Point, Polygon, shape
 from geoalchemy2.elements import WKTElement
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
@@ -215,7 +215,16 @@ async def _process_alert(
 
     # Parse polygon and compute centroid
     try:
-        polygon_shape = shape(geometry)
+        geom = shape(geometry)
+
+        # NWS may return MultiPolygon; extract the largest component
+        if isinstance(geom, MultiPolygon):
+            polygon_shape = max(geom.geoms, key=lambda g: g.area)
+        elif isinstance(geom, Polygon):
+            polygon_shape = geom
+        else:
+            raise ValueError(f"Unexpected geometry type: {geom.geom_type}")
+
         centroid = polygon_shape.centroid
 
         # Convert to WKT for PostGIS

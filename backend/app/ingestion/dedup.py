@@ -8,7 +8,8 @@ When events from different sources overlap, marks them as corroborated.
 import logging
 from datetime import timedelta
 
-from sqlalchemy import select, update, and_, not_, func, text
+from geoalchemy2 import Geography
+from sqlalchemy import select, update, and_, not_, func, cast
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.storm_event import StormEvent
@@ -73,8 +74,8 @@ async def deduplicate_storm_events(db_session: AsyncSession) -> dict:
                     StormEvent.event_timestamp >= time_window_start,
                     StormEvent.event_timestamp <= time_window_end,
                     func.ST_DWithin(
-                        func.cast(StormEvent.location, text("geography")),
-                        func.cast(
+                        cast(StormEvent.location, Geography),
+                        cast(
                             func.ST_SetSRID(
                                 func.ST_MakePoint(
                                     func.ST_X(event.location),
@@ -82,7 +83,7 @@ async def deduplicate_storm_events(db_session: AsyncSession) -> dict:
                                 ),
                                 4326,
                             ),
-                            text("geography"),
+                            Geography,
                         ),
                         SPATIAL_THRESHOLD_METERS,
                     ),

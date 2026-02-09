@@ -255,14 +255,17 @@ def parse_acs_value(value: str | None) -> int | float | None:
 async def bulk_upsert_tracts(
     session: AsyncSession,
     tracts: list[dict[str, Any]],
+    batch_size: int = 500,
 ) -> tuple[int, int]:
     """Bulk upsert census tracts into database.
 
     Uses PostgreSQL's INSERT ... ON CONFLICT DO UPDATE for efficient upserts.
+    Batches inserts to stay within asyncpg's 32,767 parameter limit.
 
     Args:
         session: Async database session
         tracts: List of tract dicts with all required fields
+        batch_size: Number of rows per INSERT batch
 
     Returns:
         Tuple of (inserted_count, updated_count)
@@ -272,27 +275,36 @@ async def bulk_upsert_tracts(
 
     # Get existing GEOIDs to track inserts vs updates
     geoids = [t["geoid"] for t in tracts]
-    result = await session.execute(
-        select(CensusTract.geoid).where(CensusTract.geoid.in_(geoids))
-    )
-    existing_geoids = {row[0] for row in result.fetchall()}
+    existing_geoids: set[str] = set()
+    # Batch the IN query too (large IN lists can also be slow)
+    for i in range(0, len(geoids), 2000):
+        chunk = geoids[i : i + 2000]
+        result = await session.execute(
+            select(CensusTract.geoid).where(CensusTract.geoid.in_(chunk))
+        )
+        existing_geoids.update(row[0] for row in result.fetchall())
 
-    # Prepare insert statement with ON CONFLICT DO UPDATE
-    stmt = insert(CensusTract).values(tracts)
+    # Insert in batches to avoid asyncpg parameter limit (32,767)
+    for i in range(0, len(tracts), batch_size):
+        batch = tracts[i : i + batch_size]
 
-    # On conflict, update all fields except id and created_at
-    update_dict = {
-        c.name: stmt.excluded[c.name]
-        for c in CensusTract.__table__.columns
-        if c.name not in ("id", "created_at")
-    }
+        stmt = insert(CensusTract).values(batch)
 
-    stmt = stmt.on_conflict_do_update(
-        index_elements=["geoid"],
-        set_=update_dict,
-    )
+        # On conflict, update all fields except id and created_at
+        update_dict = {
+            c.name: stmt.excluded[c.name]
+            for c in CensusTract.__table__.columns
+            if c.name not in ("id", "created_at")
+        }
 
-    await session.execute(stmt)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["geoid"],
+            set_=update_dict,
+        )
+
+        await session.execute(stmt)
+        logger.info(f"  Upserted batch {i // batch_size + 1} ({len(batch)} tracts)")
+
     await session.commit()
 
     inserted = len(tracts) - len(existing_geoids)
