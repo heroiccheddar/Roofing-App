@@ -20,7 +20,7 @@ httpx>=0.28
 
 # Auth
 python-jose[cryptography]>=3.3
-passlib[bcrypt]>=1.7
+bcrypt>=4.0
 
 # AWS SDK
 boto3>=1.35                      # SES email, SNS SMS, CloudWatch logging
