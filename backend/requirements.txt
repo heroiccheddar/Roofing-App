@@ -1,36 +1,36 @@
 # Framework
-fastapi[standard]==0.115.*
-uvicorn[standard]==0.34.*
-pydantic-settings==2.*
+fastapi[standard]>=0.115
+uvicorn[standard]>=0.34
+pydantic-settings>=2
 
 # Database
-sqlalchemy[asyncio]==2.0.*
-asyncpg==0.30.*
-geoalchemy2==0.15.*
-alembic==1.14.*
+sqlalchemy[asyncio]>=2.0
+asyncpg>=0.30
+geoalchemy2>=0.15
+alembic>=1.14
 
 # Scheduling
-apscheduler==3.10.*
+apscheduler>=3.10
 
 # Spatial + Data
-geopandas==1.0.*
-h3==3.7.*
-shapely==2.0.*
-httpx==0.28.*
+geopandas>=1.0
+h3>=3.7
+shapely>=2.0
+httpx>=0.28
 
 # Auth
-python-jose[cryptography]==3.3.*
-passlib[bcrypt]==1.7.*
+python-jose[cryptography]>=3.3
+passlib[bcrypt]>=1.7
 
 # AWS SDK
-boto3==1.35.*                    # SES email, SNS SMS, CloudWatch logging
+boto3>=1.35                      # SES email, SNS SMS, CloudWatch logging
 
 # External Services
-upstash-redis==1.*               # HTTP-based Redis client (Upstash)
+upstash-redis>=1                 # HTTP-based Redis client (Upstash)
 
 # Monitoring
-watchtower==3.*                  # CloudWatch Logs handler for Python logging
+watchtower>=3                    # CloudWatch Logs handler for Python logging
 
 # Dev/Test
-pytest==8.*
-pytest-asyncio==0.24.*
+pytest>=8
+pytest-asyncio>=0.24

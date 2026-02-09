@@ -9,9 +9,9 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str
 
-    # Redis
-    UPSTASH_REDIS_URL: str
-    UPSTASH_REDIS_TOKEN: str
+    # Redis (optional — cache degrades gracefully without it)
+    UPSTASH_REDIS_URL: str = ""
+    UPSTASH_REDIS_TOKEN: str = ""
 
     # JWT Authentication
     JWT_SECRET: str
@@ -30,8 +30,8 @@ class Settings(BaseSettings):
     # AWS SNS SMS
     SNS_REGION: str = "us-east-1"
 
-    # Census API
-    CENSUS_API_KEY: str
+    # Census API (required for ingestion, optional for API-only startup)
+    CENSUS_API_KEY: str = ""
 
     # CORS
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"

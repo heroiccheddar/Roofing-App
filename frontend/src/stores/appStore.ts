@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { clearAuthToken } from '../api/client'
 
 interface User {
   id: string
@@ -20,6 +21,7 @@ interface AppState {
   setSelectedZoneId: (zoneId: string | null) => void
   setMapBounds: (bounds: [number, number, number, number] | null) => void
   setFilters: (filters: Partial<AppState['filters']>) => void
+  logout: () => void
 }
 
 const useAppStore = create<AppState>((set) => ({
@@ -42,6 +44,10 @@ const useAppStore = create<AppState>((set) => ({
     set((state) => ({
       filters: { ...state.filters, ...newFilters },
     })),
+  logout: () => {
+    clearAuthToken()
+    set({ user: null, token: null, selectedZoneId: null })
+  },
 }))
 
 export default useAppStore
