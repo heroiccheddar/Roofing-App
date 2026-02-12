@@ -51,7 +51,7 @@ class AlertLog(Base):
     # External service tracking
     message_id = Column(
         String, nullable=True
-    )  # Twilio SID or Resend message ID
+    )  # AWS SES MessageId
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

@@ -22,8 +22,9 @@ from app.models.storm_event import StormEvent
 logger = logging.getLogger(__name__)
 
 # SWDI API Configuration
-SWDI_BASE_URL = "https://www.ncei.noaa.gov/access/services/swdi/v1/"
-SWDI_TIMEOUT = 30.0  # SWDI can be slow
+# URL format: {base}/json/{dataset}/{startdate}:{enddate}?bbox=w,s,e,n
+SWDI_BASE_URL = "https://www.ncei.noaa.gov/swdiws/"
+SWDI_TIMEOUT = 60.0  # SWDI can be slow with large bbox queries
 MAX_RETRIES = 3
 RETRY_BACKOFF = 2.0  # seconds
 
@@ -159,16 +160,28 @@ async def _fetch_swdi_with_retry(params: dict) -> Optional[list[dict]]:
     """Fetch from SWDI API with retry logic.
 
     Args:
-        params: Query parameters for SWDI API
+        params: Query parameters for SWDI API.
+            Must include 'dataset', 'startdate', 'enddate'.
+            Optional: 'bbox', 'format' (default json).
 
     Returns:
         List of MESH records, or None if all retries failed
     """
+    # Build URL path: {base}/{format}/{dataset}/{startdate}:{enddate}
+    fmt = params.pop("format", "json")
+    dataset = params.pop("dataset")
+    startdate = params.pop("startdate")
+    enddate = params.pop("enddate")
+    url = f"{SWDI_BASE_URL}{fmt}/{dataset}/{startdate}:{enddate}"
+
+    # Remaining params (e.g. bbox) become query string
+    query_params = params
+
     async with httpx.AsyncClient(timeout=SWDI_TIMEOUT) as client:
         for attempt in range(MAX_RETRIES):
             try:
                 logger.debug(f"SWDI API request (attempt {attempt + 1}/{MAX_RETRIES})")
-                response = await client.get(SWDI_BASE_URL, params=params)
+                response = await client.get(url, params=query_params)
 
                 # Handle rate limiting or temporary unavailability
                 if response.status_code == 503:
@@ -210,7 +223,8 @@ async def _fetch_swdi_with_retry(params: dict) -> Optional[list[dict]]:
 def _parse_swdi_response(data: dict) -> list[dict]:
     """Parse SWDI JSON response into list of MESH records.
 
-    Handles multiple possible response structures from SWDI API.
+    Handles the SWDI response structure:
+    {"swdiJsonResponse": {"columnTypes": {...}}, "result": [...]}
 
     Args:
         data: JSON response from SWDI API
@@ -220,13 +234,13 @@ def _parse_swdi_response(data: dict) -> list[dict]:
     """
     records = []
 
-    # Try result.data structure
+    # Primary format: {"swdiJsonResponse": {...}, "result": [...]}
     if isinstance(data, dict) and "result" in data:
         result = data["result"]
-        if isinstance(result, dict) and "data" in result:
-            records = result["data"]
-        elif isinstance(result, list):
+        if isinstance(result, list):
             records = result
+        elif isinstance(result, dict) and "data" in result:
+            records = result["data"]
     # Try direct array
     elif isinstance(data, list):
         records = data
@@ -254,27 +268,34 @@ async def _process_mesh_record(
         record: MESH record dict from SWDI API
         counts: Dict to update with processing counts
     """
-    # Extract fields (SWDI field names may vary)
-    wsr_id = record.get("WSR_ID") or record.get("wsr_id")
-    cell_id = record.get("CELL_ID") or record.get("cell_id")
-    ztime = record.get("ZTIME") or record.get("ztime")
-    lon = record.get("LON") or record.get("lon")
-    lat = record.get("LAT") or record.get("lat")
-    max_size = record.get("MAX_SIZE") or record.get("max_size")
-    posh = record.get("POSH") or record.get("posh")
+    # Extract fields — real SWDI field names
+    wsr_id = record.get("WSR_ID")
+    cell_id = record.get("CELL_ID")
+    ztime = record.get("ZTIME")
+    shape_wkt = record.get("SHAPE")  # WKT: "POINT (lon lat)"
+    max_size = record.get("MAXSIZE")
+    prob = record.get("PROB")  # Hail probability (0-100)
 
     # Validate required fields
-    if not all([wsr_id, cell_id, ztime, lon, lat, max_size]):
+    if not all([wsr_id, cell_id, ztime, shape_wkt, max_size]):
         logger.warning(f"Missing required fields in MESH record: {record}")
+        counts["errors"] += 1
+        return
+
+    # Parse lon/lat from WKT POINT
+    try:
+        shape_point = wkt.loads(shape_wkt)
+        lon_float = shape_point.x
+        lat_float = shape_point.y
+    except Exception as e:
+        logger.warning(f"Error parsing SHAPE WKT '{shape_wkt}': {e}")
         counts["errors"] += 1
         return
 
     # Parse numeric values (SWDI returns strings)
     try:
-        lon_float = float(lon)
-        lat_float = float(lat)
         mesh_inches = float(max_size)
-        posh_value = float(posh) if posh else None
+        posh_value = float(prob) if prob else None
     except (ValueError, TypeError) as e:
         logger.warning(f"Error parsing MESH numeric values: {e}, record: {record}")
         counts["errors"] += 1
@@ -337,32 +358,34 @@ async def _process_mesh_record(
 def _parse_swdi_timestamp(ztime: str) -> datetime:
     """Parse SWDI ZTIME format to datetime.
 
-    SWDI uses YYYYMMDD_HHMM format in UTC.
+    SWDI returns ISO 8601 format: "2023-06-04T22:05:53Z"
 
     Args:
         ztime: Timestamp string from SWDI
 
     Returns:
-        datetime object in UTC
+        datetime object (naive, UTC)
 
     Raises:
         ValueError: If timestamp format is invalid
     """
-    # Remove any whitespace
     ztime = ztime.strip()
 
-    # Try YYYYMMDD_HHMM format
+    # ISO format: "2023-06-04T22:05:53Z" (primary format from real API)
+    if "T" in ztime:
+        dt = datetime.fromisoformat(ztime.replace("Z", "+00:00"))
+        return dt.replace(tzinfo=None)
+
+    # Legacy YYYYMMDD_HHMM format
     if "_" in ztime:
         date_part, time_part = ztime.split("_")
-        dt_str = f"{date_part}{time_part}"
-        return datetime.strptime(dt_str, "%Y%m%d%H%M").replace(tzinfo=None)
+        return datetime.strptime(f"{date_part}{time_part}", "%Y%m%d%H%M")
 
-    # Try YYYYMMDDHHMM format
+    # YYYYMMDDHHMM format
     if len(ztime) == 12:
-        return datetime.strptime(ztime, "%Y%m%d%H%M").replace(tzinfo=None)
+        return datetime.strptime(ztime, "%Y%m%d%H%M")
 
-    # Try ISO format as fallback
-    return datetime.fromisoformat(ztime.replace("Z", "+00:00"))
+    raise ValueError(f"Unrecognized SWDI timestamp format: {ztime}")
 
 
 async def _async_sleep(seconds: float) -> None:

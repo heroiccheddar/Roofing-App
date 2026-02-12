@@ -17,11 +17,9 @@ import type {
   ZoneDetailResponse,
   StormEventBrief,
   ZoneGeoJSONResponse,
-  FeedbackCreate,
-  FeedbackUpdate,
-  FeedbackResponse,
-  FeedbackHistoryResponse,
-  PerformanceAnalytics,
+  ZoneFeedbackCreate,
+  ZoneFeedbackResponse,
+  ZoneFeedbackListResponse,
   AlertHistoryResponse,
   CalibrationReport,
   WeightProposal,
@@ -34,11 +32,18 @@ import type {
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
-// Token management (in-memory only, not localStorage)
-let authToken: string | null = null;
+// Token management — sessionStorage for persistence across HMR and page refresh
+const TOKEN_KEY = 'stormleads_token';
+
+let authToken: string | null = sessionStorage.getItem(TOKEN_KEY);
 
 export function setAuthToken(token: string | null): void {
   authToken = token;
+  if (token) {
+    sessionStorage.setItem(TOKEN_KEY, token);
+  } else {
+    sessionStorage.removeItem(TOKEN_KEY);
+  }
 }
 
 export function getAuthToken(): string | null {
@@ -47,6 +52,7 @@ export function getAuthToken(): string | null {
 
 export function clearAuthToken(): void {
   authToken = null;
+  sessionStorage.removeItem(TOKEN_KEY);
 }
 
 // ===== Generic Fetch Wrapper =====
@@ -193,7 +199,8 @@ export async function getZoneEvents(id: string): Promise<StormEventBrief[]> {
 
 export async function getZonesGeoJSON(
   bbox?: [number, number, number, number],
-  minScore?: number
+  minScore?: number,
+  leadType?: string
 ): Promise<ZoneGeoJSONResponse> {
   const params: Record<string, string | number | undefined> = {};
 
@@ -203,38 +210,27 @@ export async function getZonesGeoJSON(
   if (minScore !== undefined) {
     params.min_score = minScore;
   }
+  if (leadType !== undefined) {
+    params.lead_type = leadType;
+  }
 
   return apiFetch<ZoneGeoJSONResponse>('/api/v1/zones/geojson', { params });
 }
 
-// ===== Feedback =====
+// ===== Zone Feedback =====
 
 export async function submitFeedback(
   zoneId: string,
-  data: FeedbackCreate
-): Promise<FeedbackResponse> {
-  return apiFetch<FeedbackResponse>(`/api/v1/zones/${zoneId}/feedback`, {
+  data: ZoneFeedbackCreate
+): Promise<ZoneFeedbackResponse> {
+  return apiFetch<ZoneFeedbackResponse>(`/api/v1/zones/${zoneId}/feedback`, {
     method: 'POST',
     body: JSON.stringify(data),
   });
 }
 
-export async function updateFeedback(
-  sessionId: string,
-  data: FeedbackUpdate
-): Promise<FeedbackResponse> {
-  return apiFetch<FeedbackResponse>(`/api/v1/feedback/${sessionId}`, {
-    method: 'PUT',
-    body: JSON.stringify(data),
-  });
-}
-
-export async function getFeedbackHistory(): Promise<FeedbackHistoryResponse> {
-  return apiFetch<FeedbackHistoryResponse>('/api/v1/feedback/my-history');
-}
-
-export async function getPerformance(): Promise<PerformanceAnalytics> {
-  return apiFetch<PerformanceAnalytics>('/api/v1/analytics/my-performance');
+export async function getFeedbackHistory(): Promise<ZoneFeedbackListResponse> {
+  return apiFetch<ZoneFeedbackListResponse>('/api/v1/feedback/my-history');
 }
 
 // ===== Alerts =====

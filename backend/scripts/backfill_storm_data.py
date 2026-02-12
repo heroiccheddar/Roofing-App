@@ -21,7 +21,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-TARGET_STATES = ["TX", "OK", "KS", "CO", "NE"]
+TARGET_STATES = ["GA"]
 
 
 async def main() -> None:

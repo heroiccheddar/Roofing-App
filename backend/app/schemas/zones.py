@@ -18,6 +18,7 @@ class ZoneListParams(BaseModel):
     hail_min: float | None = Field(
         None, ge=0, description="Minimum hail diameter filter (inches)"
     )
+    lead_type: str | None = Field(None, description="Filter by lead type: 'storm' or 'roof_age'")
     sort_by: str = Field(
         default="score",
         description="Sort field: 'score', 'time', 'hail'",
@@ -60,6 +61,7 @@ class ZoneResponse(BaseModel):
 
     id: UUID = Field(..., description="Zone ID")
     h3_index: str = Field(..., description="H3 hexagon index")
+    lead_type: str = Field(default="storm", description="Lead type: 'storm' or 'roof_age'")
 
     # Scoring components
     composite_score: float = Field(..., description="Final composite score (0-100)")
@@ -107,6 +109,73 @@ class ZoneDetailResponse(ZoneResponse):
     events: list[StormEventBrief] = Field(
         default_factory=list, description="Contributing storm events"
     )
+    avg_roof_age_years: float | None = Field(
+        None, description="Average roof age in years (from census median_year_built)"
+    )
+    avg_median_income: float | None = Field(
+        None, description="Area-weighted median household income"
+    )
+    avg_vacancy_rate: float | None = Field(
+        None, description="Area-weighted vacancy rate %"
+    )
+    avg_single_family_pct: float | None = Field(
+        None, description="Area-weighted single-family housing %"
+    )
+    avg_pct_built_before_1980: float | None = Field(
+        None, description="Area-weighted % homes built before 1980"
+    )
+    nri_hail_risk: str | None = Field(
+        None, description="FEMA NRI hail risk rating"
+    )
+    nri_wind_risk: str | None = Field(
+        None, description="FEMA NRI wind risk rating"
+    )
+    nri_tornado_risk: str | None = Field(
+        None, description="FEMA NRI tornado risk rating"
+    )
+    total_building_count: int | None = Field(
+        None, description="Building footprint count in zone area"
+    )
+    avg_building_area_sqm: float | None = Field(
+        None, description="Average building footprint area (sq m)"
+    )
+    hail_exposure_score: float | None = Field(
+        None, description="Historical hail exposure score (0-100)"
+    )
+    hail_events_3yr: int | None = Field(
+        None, description="MESH radar hail observations in last 3 years"
+    )
+    fema_disaster_count: int | None = Field(
+        None, description="FEMA disaster declarations in area"
+    )
+    fema_disaster_score: float | None = Field(
+        None, description="FEMA disaster recency-weighted score (0-100)"
+    )
+    tree_canopy_mean_pct: float | None = Field(
+        None, description="Average tree canopy coverage % (0-100)"
+    )
+    tree_canopy_risk_score: float | None = Field(
+        None, description="Tree canopy risk score (0-100)"
+    )
+    dominant_decade: str | None = Field(None, description="Most common housing decade (e.g., '1990s')")
+    age_clustering_score: float | None = Field(None, description="Age clustering HHI score (0-100)")
+    pct_cost_burdened: float | None = Field(None, description="% spending 30%+ of income on housing")
+    hpi_5yr_change: float | None = Field(None, description="5-year home price index % change")
+    verified_damage_5yr_usd: float | None = Field(None, description="Verified property damage $ (5yr)")
+    climate_weathering_score: float | None = Field(None, description="Climate weathering index (0-100)")
+    svi_overall: float | None = Field(None, description="CDC SVI overall vulnerability (0-1)")
+    svi_housing_type: float | None = Field(None, description="CDC SVI housing type/transport (0-1)")
+    ruca_category: str | None = Field(None, description="USDA RUCA classification: urban, large_rural, small_town, isolated_rural")
+    bps_single_family_permits: int | None = Field(None, description="Annual single-family building permits (county-level)")
+    bps_all_permits: int | None = Field(None, description="Annual total building permits (county-level)")
+    bps_total_value: float | None = Field(None, description="Annual total construction value ($)")
+    ej_lead_paint: float | None = Field(None, description="EPA EJSCREEN: % pre-1960 housing (lead paint proxy)")
+    ej_percentile: float | None = Field(None, description="EPA EJSCREEN: overall EJ index percentile (0-100)")
+    flood_risk_category: str | None = Field(None, description="FEMA flood risk: high, moderate, low, minimal")
+    flood_insurance_required: bool | None = Field(None, description="Whether NFIP flood insurance is mandatory")
+    redfin_median_sale_price: float | None = Field(None, description="Redfin median sale price ($)")
+    redfin_median_dom: float | None = Field(None, description="Redfin median days on market")
+    redfin_price_drop_pct: float | None = Field(None, description="% of listings with price drops")
 
 
 class ZoneListResponse(BaseModel):

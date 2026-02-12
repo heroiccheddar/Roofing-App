@@ -11,6 +11,7 @@ from app.models.canvass_session import CanvassSession
 from app.models.model_calibration import ModelCalibration
 from app.models.roofer_account import RooferAccount
 from app.models.alert_log import AlertLog
+from app.models.zone_feedback import ZoneFeedback
 
 __all__ = [
     "StormEvent",
@@ -20,4 +21,5 @@ __all__ = [
     "ModelCalibration",
     "RooferAccount",
     "AlertLog",
+    "ZoneFeedback",
 ]

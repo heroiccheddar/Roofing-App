@@ -69,6 +69,7 @@ class RooferAccount(Base):
         "CanvassSession", back_populates="roofer_account", lazy="select"
     )
     alert_logs = relationship("AlertLog", back_populates="roofer_account", lazy="select")
+    zone_feedbacks = relationship("ZoneFeedback", back_populates="roofer_account", lazy="select")
 
     __table_args__ = (
         # Spatial index on service_area (GIST)

@@ -70,6 +70,7 @@ export interface AccountResponse {
 export interface ZoneListParams {
   min_score?: number;
   hail_min?: number;
+  lead_type?: 'storm' | 'roof_age';
   sort_by?: 'score' | 'time' | 'hail';
   page?: number;
   page_size?: number;
@@ -88,6 +89,7 @@ export interface StormEventBrief {
 export interface ZoneResponse {
   id: string;
   h3_index: string;
+  lead_type: string;
 
   // Scoring components
   composite_score: number;
@@ -121,6 +123,41 @@ export interface ZoneDetailResponse extends ZoneResponse {
   decay_adjusted_score: number;
   hours_since_storm: number;
   events: StormEventBrief[];
+  avg_roof_age_years?: number;
+  avg_median_income?: number;
+  avg_vacancy_rate?: number;
+  avg_single_family_pct?: number;
+  avg_pct_built_before_1980?: number;
+  nri_hail_risk?: string;
+  nri_wind_risk?: string;
+  nri_tornado_risk?: string;
+  total_building_count?: number;
+  avg_building_area_sqm?: number;
+  hail_exposure_score?: number;
+  hail_events_3yr?: number;
+  fema_disaster_count?: number;
+  fema_disaster_score?: number;
+  tree_canopy_mean_pct?: number;
+  tree_canopy_risk_score?: number;
+  dominant_decade?: string;
+  age_clustering_score?: number;
+  pct_cost_burdened?: number;
+  hpi_5yr_change?: number;
+  verified_damage_5yr_usd?: number;
+  climate_weathering_score?: number;
+  svi_overall?: number;
+  svi_housing_type?: number;
+  ruca_category?: string;
+  bps_single_family_permits?: number;
+  bps_all_permits?: number;
+  bps_total_value?: number;
+  ej_lead_paint?: number;
+  ej_percentile?: number;
+  flood_risk_category?: string;
+  flood_insurance_required?: boolean;
+  redfin_median_sale_price?: number;
+  redfin_median_dom?: number;
+  redfin_price_drop_pct?: number;
 }
 
 export interface ZoneListResponse {
@@ -146,88 +183,28 @@ export interface ZoneGeoJSONResponse {
   features: ZoneGeoJSONFeature[];
 }
 
-// ===== Feedback & Analytics =====
+// ===== Zone Feedback (POC) =====
 
-export interface FeedbackCreate {
-  // Tier 1: Required
-  rating: number; // 1-5
-
-  // Tier 2: Encouraged
-  doors_knocked?: number;
-  doors_answered?: number;
-  visible_damage_count?: number;
-  homeowner_interested?: number;
-
-  // Tier 3: Detailed
-  inspections_scheduled?: number;
-  contracts_signed?: number;
-  estimated_revenue?: number;
-  roof_type?: string;
-  competitor_presence?: 'none' | 'low' | 'medium' | 'high';
-
+export interface ZoneFeedbackCreate {
+  rating: number; // 1-5 stars
+  visible_damage?: boolean;
   notes?: string;
 }
 
-export interface FeedbackUpdate {
-  rating?: number;
-  doors_knocked?: number;
-  doors_answered?: number;
-  visible_damage_count?: number;
-  homeowner_interested?: number;
-  inspections_scheduled?: number;
-  contracts_signed?: number;
-  estimated_revenue?: number;
-  roof_type?: string;
-  competitor_presence?: 'none' | 'low' | 'medium' | 'high';
-  notes?: string;
-}
-
-export interface FeedbackResponse {
+export interface ZoneFeedbackResponse {
   id: string;
   lead_zone_id: string;
-
+  roofer_account_id: string;
   rating: number;
-  doors_knocked?: number;
-  doors_answered?: number;
-  visible_damage_count?: number;
-  homeowner_interested?: number;
-  inspections_scheduled?: number;
-  contracts_signed?: number;
-  estimated_revenue?: number;
-  roof_type?: string;
-  competitor_presence?: string;
+  visible_damage?: boolean;
   notes?: string;
-  zone_score_at_time?: number;
-
+  zone_score_at_feedback?: number;
   created_at: string;
-  updated_at: string;
 }
 
-export interface FeedbackHistoryResponse {
-  sessions: FeedbackResponse[];
+export interface ZoneFeedbackListResponse {
+  feedbacks: ZoneFeedbackResponse[];
   total: number;
-}
-
-export interface ConversionByBand {
-  hot?: number;
-  warm?: number;
-  cool?: number;
-}
-
-export interface ConversionOverTime {
-  date: string; // YYYY-MM-DD
-  conversion_rate: number;
-  zones_canvassed: number;
-}
-
-export interface PerformanceAnalytics {
-  total_zones_canvassed: number;
-  avg_conversion_rate: number;
-  best_score_band?: string;
-  best_hail_range?: string;
-  revenue_per_trip: number;
-  conversion_by_band: ConversionByBand;
-  conversion_over_time: ConversionOverTime[];
 }
 
 // ===== Alerts =====

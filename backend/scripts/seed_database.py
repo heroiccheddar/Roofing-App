@@ -28,9 +28,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Tornado Alley states
-TARGET_STATES = ["TX", "OK", "KS", "CO", "NE"]
-STATE_FIPS = ["48", "40", "20", "08", "31"]  # TX, OK, KS, CO, NE
+# Tornado Alley states + Georgia
+TARGET_STATES = ["TX", "OK", "KS", "CO", "NE", "GA"]
+STATE_FIPS = ["48", "40", "20", "08", "31", "13"]  # TX, OK, KS, CO, NE, GA
 
 
 async def seed_census() -> dict:

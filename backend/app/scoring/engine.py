@@ -5,6 +5,7 @@ demographic enrichment, and temporal decay. Produces scored LeadZone records.
 """
 
 import logging
+import math
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -53,6 +54,7 @@ async def run_scoring_pipeline(session: AsyncSession) -> dict:
         "zones_created": 0,
         "zones_updated": 0,
         "errors": 0,
+        "zone_ids": [],  # IDs of created/updated zones for alert processing
     }
 
     logger.info("Starting scoring pipeline")
@@ -83,6 +85,9 @@ async def run_scoring_pipeline(session: AsyncSession) -> dict:
             if zone is not None:
                 # Track which events were processed
                 processed_event_ids.extend([e.id for e in events])
+
+                # Track zone ID for alert processing
+                stats["zone_ids"].append(zone.id)
 
                 # Update stats
                 if hasattr(zone, '_is_new'):
@@ -161,42 +166,80 @@ async def score_single_zone(
     wind_score = min(max((max_wind_speed - 50) * 2, 0), 100)
 
     # Base damage score: max of hail and wind
-    damage_prob = max(hail_score, wind_score)
+    event_damage = max(hail_score, wind_score)
 
     # Boost by 10 if corroborated (multiple sources)
     has_corroboration = any(e.corroborated for e in events)
     if has_corroboration:
-        damage_prob += 10
+        event_damage += 10
 
     # Boost by event count: min(event_count * 5, 20)
     count_bonus = min(event_count * 5, 20)
-    damage_prob += count_bonus
+    event_damage += count_bonus
 
-    # Cap at 100
-    damage_prob = min(damage_prob, 100)
+    # NRI regional risk modifier (0-15 points)
+    nri_hail_freq = demographics.get("avg_nri_hail_afreq", 0.0)
+    nri_swnd_freq = demographics.get("avg_nri_swnd_afreq", 0.0)
+    nri_trnd_freq = demographics.get("avg_nri_trnd_afreq", 0.0)
+    nri_combined = nri_hail_freq * 5.0 + nri_swnd_freq * 2.5 + nri_trnd_freq * 10.0
+    nri_risk_bonus = min(nri_combined, 15)
 
-    # 4b. lead_quality (0-100): Based on demographics
-    avg_owner_occupied_pct = demographics["avg_owner_occupied_pct"]
-    avg_median_home_value = demographics["avg_median_home_value"]
-    avg_median_year_built = demographics["avg_median_year_built"]
+    # Historical hail exposure modifier (0-15 pts)
+    hail_exposure = demographics.get("avg_hail_exposure_score", 0.0)
+    hail_exposure_bonus = min(hail_exposure * 0.15, CURRENT_MODEL_VERSION.historical_exposure_weights.hail_exposure_max_bonus)
 
-    # Owner occupancy contribution: avg_owner_occupied_pct * 0.4 (max 40 pts)
-    owner_contrib = avg_owner_occupied_pct * 0.4
+    # FEMA disaster modifier (0-10 pts)
+    fema_score = demographics.get("avg_fema_disaster_score", 0.0)
+    fema_bonus = min(fema_score * 0.10, CURRENT_MODEL_VERSION.historical_exposure_weights.fema_disaster_max_bonus)
 
-    # Home value contribution: min(avg_median_home_value / 5000, 30) (max 30 pts)
-    value_contrib = min(avg_median_home_value / 5000, 30)
+    # Tree canopy modifier (0-8 pts) — high canopy amplifies storm damage
+    canopy_risk = demographics.get("avg_tree_canopy_risk_score", 0.0)
+    canopy_bonus = min(canopy_risk * 0.08, CURRENT_MODEL_VERSION.tree_canopy_weights.storm_canopy_max_bonus)
 
-    # Roof age contribution: older roofs are better leads
-    roof_age_contrib = 0.0
-    if avg_median_year_built > 0 and avg_median_year_built < 2000:
-        roof_age_contrib = min((2000 - avg_median_year_built) * 0.5, 30)
+    # Verified historical damage bonus (0-10 pts, log scale)
+    verified_damage = demographics.get("avg_verified_damage_5yr_usd", 0)
+    verified_damage_bonus = min(
+        math.log10(max(verified_damage, 1)) * 2.5,
+        CURRENT_MODEL_VERSION.verified_damage_weights.verified_damage_max_bonus,
+    )
 
-    lead_quality = owner_contrib + value_contrib + roof_age_contrib
-    lead_quality = min(lead_quality, 100)
+    # Climate wind exposure bonus (0-5 pts)
+    climate_weathering = demographics.get("avg_climate_weathering_score", 0)
+    climate_wind_bonus = min(
+        climate_weathering * 0.05,
+        CURRENT_MODEL_VERSION.climate_weathering_weights.storm_climate_max_bonus,
+    )
 
-    # 4c. density_bonus (0-100): Based on housing density
-    avg_housing_density = demographics["avg_housing_density"]
-    density_bonus = min(avg_housing_density / 10, 100)
+    # SVI vulnerability bonus (0-5 pts) — higher SVI = more disaster-vulnerable
+    svi_overall = demographics.get("avg_svi_overall", 0)
+    svi_bonus = min(
+        svi_overall * 5.0,  # SVI is 0-1, so * 5.0 gives 0-5 range
+        CURRENT_MODEL_VERSION.svi_weights.storm_svi_max_bonus,
+    )
+
+    damage_prob = min(event_damage + nri_risk_bonus + hail_exposure_bonus + fema_bonus + canopy_bonus + verified_damage_bonus + climate_wind_bonus + svi_bonus, 100)
+
+    # 4b. lead_quality (0-100): Percentile-normalized demographics
+    lq_weights = {
+        "owner_occupied":     0.18,
+        "home_value":         0.14,
+        "roof_age":           0.18,
+        "income":             0.14,
+        "single_family":      0.05,
+        "low_vacancy":        0.05,
+        "low_cost_burden":    0.08,
+        "hpi_appreciation":   0.08,
+        "market_activity":    0.10,
+    }
+
+    lead_quality = 0.0
+    for feature, weight in lq_weights.items():
+        pctile = demographics.get(f"pctile_{feature}", 50.0)
+        lead_quality += pctile * weight
+    lead_quality = max(0.0, min(lead_quality, 100.0))
+
+    # 4c. density_bonus (0-100): From percentile
+    density_bonus = demographics.get("pctile_density", 50.0)
 
     # Step 5: Compute composite score + apply decay
 

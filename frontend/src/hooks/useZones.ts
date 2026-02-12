@@ -5,10 +5,12 @@ import useAppStore from '../stores/appStore'
 
 export function useZoneList(params?: Partial<ZoneListParams>) {
   const minScore = useAppStore((s) => s.filters.minScore)
+  const leadType = useAppStore((s) => s.filters.leadType)
+  const lead_type = leadType === 'all' ? undefined : leadType
 
   return useQuery({
-    queryKey: ['zones', { ...params, min_score: minScore }],
-    queryFn: () => getZones({ min_score: minScore, ...params }),
+    queryKey: ['zones', { ...params, min_score: minScore, lead_type }],
+    queryFn: () => getZones({ min_score: minScore, lead_type, ...params }),
     staleTime: 30_000,
   })
 }
@@ -24,10 +26,12 @@ export function useZoneDetail(zoneId: string | null) {
 
 export function useZonesGeoJSON() {
   const minScore = useAppStore((s) => s.filters.minScore)
+  const leadType = useAppStore((s) => s.filters.leadType)
+  const lead_type = leadType === 'all' ? undefined : leadType
 
   return useQuery({
-    queryKey: ['zones-geojson', minScore],
-    queryFn: () => getZonesGeoJSON(undefined, minScore),
+    queryKey: ['zones-geojson', minScore, lead_type],
+    queryFn: () => getZonesGeoJSON(undefined, minScore, lead_type),
     staleTime: 30_000,
     refetchInterval: 60_000,
   })

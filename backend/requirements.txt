@@ -5,7 +5,7 @@ pydantic-settings>=2
 
 # Database
 sqlalchemy[asyncio]>=2.0
-asyncpg>=0.30
+psycopg[binary]>=3.2
 geoalchemy2>=0.15
 alembic>=1.14
 
@@ -17,6 +17,7 @@ geopandas>=1.0
 h3>=3.7
 shapely>=2.0
 httpx>=0.28
+rasterio>=1.4                    # Raster I/O for GeoTIFF processing (zonal stats)
 
 # Auth
 python-jose[cryptography]>=3.3

@@ -40,6 +40,9 @@ class LeadZone(Base):
     # H3 identifier
     h3_index = Column(String, nullable=False)  # Primary H3 hex identifier
 
+    # Lead type: 'storm' (weather-driven) or 'roof_age' (census-driven)
+    lead_type = Column(String, nullable=False, default='storm', server_default='storm')
+
     # Scoring components
     composite_score = Column(Float, nullable=False)  # 0-100
     damage_prob = Column(Float, nullable=False)  # Sub-score
@@ -86,6 +89,7 @@ class LeadZone(Base):
         "CanvassSession", back_populates="lead_zone", lazy="select"
     )
     alert_logs = relationship("AlertLog", back_populates="lead_zone", lazy="select")
+    zone_feedbacks = relationship("ZoneFeedback", back_populates="lead_zone", lazy="select")
 
     __table_args__ = (
         # Spatial index on boundary (GIST)
@@ -109,6 +113,10 @@ class LeadZone(Base):
         Index('ix_lead_zones_active', 'active'),
         # Index on expires_at for cleanup queries
         Index('ix_lead_zones_expires_at', 'expires_at'),
+        # Index on lead_type for filtering
+        Index('ix_lead_zones_lead_type', 'lead_type'),
+        # Composite index for lead_type + active + score queries
+        Index('ix_lead_zones_type_active_score', 'lead_type', 'active', 'composite_score'),
     )
 
     def __repr__(self):

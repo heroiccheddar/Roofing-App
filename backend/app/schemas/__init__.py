@@ -30,15 +30,11 @@ from app.schemas.zones import (
     GeoJSONGeometry,
 )
 
-# Feedback and analytics
+# Zone feedback (POC)
 from app.schemas.feedback import (
-    FeedbackCreate,
-    FeedbackUpdate,
-    FeedbackResponse,
-    FeedbackHistoryResponse,
-    PerformanceAnalytics,
-    ConversionByBand,
-    ConversionOverTime,
+    ZoneFeedbackCreate,
+    ZoneFeedbackResponse,
+    ZoneFeedbackListResponse,
 )
 
 # Alerts
@@ -76,14 +72,10 @@ __all__ = [
     "ZoneGeoJSONFeature",
     "ZoneGeoJSONResponse",
     "GeoJSONGeometry",
-    # Feedback
-    "FeedbackCreate",
-    "FeedbackUpdate",
-    "FeedbackResponse",
-    "FeedbackHistoryResponse",
-    "PerformanceAnalytics",
-    "ConversionByBand",
-    "ConversionOverTime",
+    # Zone feedback
+    "ZoneFeedbackCreate",
+    "ZoneFeedbackResponse",
+    "ZoneFeedbackListResponse",
     # Alerts
     "AlertLogResponse",
     "AlertHistoryResponse",

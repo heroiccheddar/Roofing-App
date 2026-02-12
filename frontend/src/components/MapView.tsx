@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { useZonesGeoJSON } from '../hooks/useZones'
@@ -7,21 +7,40 @@ import useAppStore from '../stores/appStore'
 // Mapbox token from env
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN || ''
 
-// Score band colors
-const BAND_COLORS: Record<string, string> = {
-  hot: '#EF4444',    // Red
-  warm: '#F97316',   // Orange
-  cool: '#EAB308',   // Yellow
-  skip: '#6366F1',   // Indigo (visible on light basemap)
-}
+// Continuous color ramp expressions (interpolate on composite_score 0-100)
+// Roof age: cool blue → teal → green → amber → red
+const ROOF_AGE_COLOR_RAMP: mapboxgl.Expression = [
+  'interpolate', ['linear'],
+  ['get', 'composite_score'],
+  20, '#93C5FD',   // Blue-300  (low)
+  35, '#5EEAD4',   // Teal-300
+  50, '#34D399',   // Emerald-400
+  65, '#FBBF24',   // Amber-400
+  80, '#EF4444',   // Red-500   (high)
+]
+
+// Storm: indigo → sky → amber → orange → red
+const STORM_COLOR_RAMP: mapboxgl.Expression = [
+  'interpolate', ['linear'],
+  ['get', 'composite_score'],
+  20, '#A5B4FC',   // Indigo-300 (low)
+  35, '#7DD3FC',   // Sky-300
+  50, '#FDE68A',   // Amber-200
+  65, '#FB923C',   // Orange-400
+  80, '#DC2626',   // Red-600    (high)
+]
 
 function MapView() {
   const mapContainer = useRef<HTMLDivElement>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
   const fittedRef = useRef(false)
+  const [mapLoaded, setMapLoaded] = useState(false)
+  const homeMarkerRef = useRef<mapboxgl.Marker | null>(null)
   const { data: geojson } = useZonesGeoJSON()
   const selectedZoneId = useAppStore((s) => s.selectedZoneId)
   const setSelectedZoneId = useAppStore((s) => s.setSelectedZoneId)
+  const homeLat = useAppStore((s) => s.homeLat)
+  const homeLon = useAppStore((s) => s.homeLon)
 
   useEffect(() => {
     if (!mapContainer.current || mapRef.current) return
@@ -42,39 +61,36 @@ function MapView() {
         data: { type: 'FeatureCollection', features: [] },
       })
 
-      // Fill layer for zone polygons
+      // Fill layer for zone polygons — continuous color gradient
       map.addLayer({
         id: 'zones-fill',
         type: 'fill',
         source: 'zones',
         paint: {
           'fill-color': [
-            'match', ['get', 'score_band'],
-            'hot', BAND_COLORS.hot,
-            'warm', BAND_COLORS.warm,
-            'cool', BAND_COLORS.cool,
-            'skip', BAND_COLORS.skip,
-            '#6366F1', // default
-          ],
+            'case',
+            ['==', ['get', 'lead_type'], 'roof_age'],
+            ROOF_AGE_COLOR_RAMP,
+            STORM_COLOR_RAMP,
+          ] as any,
           'fill-opacity': 0.55,
         },
       })
 
-      // Outline layer
+      // Outline layer — same gradient, slightly darker via opacity
       map.addLayer({
         id: 'zones-outline',
         type: 'line',
         source: 'zones',
         paint: {
           'line-color': [
-            'match', ['get', 'score_band'],
-            'hot', BAND_COLORS.hot,
-            'warm', BAND_COLORS.warm,
-            'cool', BAND_COLORS.cool,
-            'skip', BAND_COLORS.skip,
-            '#6366F1',
-          ],
-          'line-width': 3,
+            'case',
+            ['==', ['get', 'lead_type'], 'roof_age'],
+            ROOF_AGE_COLOR_RAMP,
+            STORM_COLOR_RAMP,
+          ] as any,
+          'line-width': 2,
+          'line-opacity': 0.8,
         },
       })
 
@@ -120,6 +136,8 @@ function MapView() {
       map.on('mouseleave', 'zones-fill', () => {
         map.getCanvas().style.cursor = ''
       })
+
+      setMapLoaded(true)
     })
 
     mapRef.current = map
@@ -133,7 +151,7 @@ function MapView() {
   // Update GeoJSON data when it changes, fit bounds on first load
   useEffect(() => {
     const map = mapRef.current
-    if (!map || !geojson) return
+    if (!map || !mapLoaded || !geojson) return
 
     const source = map.getSource('zones') as mapboxgl.GeoJSONSource | undefined
     if (source) {
@@ -160,7 +178,7 @@ function MapView() {
         map.fitBounds(bounds, { padding: 80, maxZoom: 12 })
       }
     }
-  }, [geojson])
+  }, [geojson, mapLoaded])
 
   // Update highlight filter when selection changes
   useEffect(() => {
@@ -197,6 +215,32 @@ function MapView() {
 
     map.flyTo({ center: [lon, lat], zoom: 11, duration: 1000 })
   }, [selectedZoneId, geojson])
+
+  // Show home marker
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoaded || homeLat == null || homeLon == null) return
+
+    // Remove existing marker
+    if (homeMarkerRef.current) {
+      homeMarkerRef.current.remove()
+    }
+
+    // Create a simple home marker element
+    const el = document.createElement('div')
+    el.style.cssText = 'width:14px;height:14px;background:#2563eb;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.3);'
+
+    const marker = new mapboxgl.Marker({ element: el })
+      .setLngLat([homeLon, homeLat])
+      .setPopup(new mapboxgl.Popup({ offset: 10 }).setText('Home'))
+      .addTo(map)
+
+    homeMarkerRef.current = marker
+
+    return () => {
+      marker.remove()
+    }
+  }, [homeLat, homeLon, mapLoaded])
 
   return <div ref={mapContainer} style={{ width: '100%', height: '100%' }} />
 }

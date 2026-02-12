@@ -19,8 +19,8 @@ from app.models.lead_zone import LeadZone
 
 logger = logging.getLogger(__name__)
 
-# Target states for weather monitoring (Tornado Alley)
-TARGET_STATES = ["TX", "OK", "KS", "CO", "NE"]
+# Target states for weather monitoring (POC)
+TARGET_STATES = ["GA"]
 
 
 async def job_poll_nws() -> None:

@@ -2,8 +2,16 @@
 
 import asyncio
 import os
+import sys
 from logging.config import fileConfig
 from pathlib import Path
+
+# SQLAlchemy Cython extensions deadlock on Python 3.14 Windows (import lock bug)
+os.environ.setdefault("DISABLE_SQLALCHEMY_CEXT_RUNTIME", "1")
+
+# psycopg requires SelectorEventLoop on Windows
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 from dotenv import load_dotenv
 from sqlalchemy import pool
@@ -25,6 +33,7 @@ from app.models import (
     ModelCalibration,
     RooferAccount,
     AlertLog,
+    ZoneFeedback,
 )
 
 # Alembic Config object
@@ -35,16 +44,16 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # Set SQLAlchemy URL from environment variable
-# Ensure the asyncpg driver is specified for Neon connections
+# Ensure the psycopg driver is specified for Neon connections
 database_url = os.getenv("DATABASE_URL")
 if database_url:
-    # Normalize to asyncpg driver if plain postgresql:// is provided
+    # Normalize to psycopg driver if plain postgresql:// is provided
     if database_url.startswith("postgresql://"):
-        database_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        database_url = database_url.replace("postgresql://", "postgresql+psycopg://", 1)
     elif database_url.startswith("postgres://"):
-        database_url = database_url.replace("postgres://", "postgresql+asyncpg://", 1)
-    # asyncpg uses 'ssl' not 'sslmode' — convert for compatibility
-    database_url = database_url.replace("sslmode=require", "ssl=require")
+        database_url = database_url.replace("postgres://", "postgresql+psycopg://", 1)
+    # psycopg uses libpq-style 'sslmode' — convert 'ssl' if present
+    database_url = database_url.replace("ssl=require", "sslmode=require")
     config.set_main_option("sqlalchemy.url", database_url)
 
 # Target metadata for autogenerate

@@ -87,3 +87,8 @@ dist-ssr/
 
 # OS
 Thumbs.db
+nul
+
+# Data files (downloaded/generated)
+backend/data/
+*.tif

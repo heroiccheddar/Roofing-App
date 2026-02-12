@@ -1,5 +1,16 @@
 """Database engine and session configuration."""
 
+import asyncio
+import os
+import sys
+
+# SQLAlchemy Cython extensions deadlock on Python 3.14 Windows (import lock bug)
+os.environ.setdefault("DISABLE_SQLALCHEMY_CEXT_RUNTIME", "1")
+
+# psycopg requires SelectorEventLoop on Windows (ProactorEventLoop unsupported)
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import declarative_base
 

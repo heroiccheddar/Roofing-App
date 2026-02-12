@@ -140,6 +140,17 @@ def compute_weighted_demographics(tracts: list[CensusTract]) -> dict[str, Any]:
         - total_housing_units: Sum of all housing units
         - total_population: Sum of all population
         - avg_housing_density: Area-weighted average housing density
+        - avg_nri_hail_afreq: Area-weighted average NRI hail frequency
+        - avg_nri_hail_ealt: Area-weighted average NRI hail expected annual loss
+        - avg_nri_swnd_afreq: Area-weighted average NRI severe wind frequency
+        - avg_nri_swnd_ealt: Area-weighted average NRI severe wind expected annual loss
+        - avg_nri_trnd_afreq: Area-weighted average NRI tornado frequency
+        - avg_median_household_income: Area-weighted average median household income
+        - avg_vacancy_rate: Area-weighted average vacancy rate
+        - avg_single_family_pct: Area-weighted average single-family percentage
+        - avg_pct_built_before_1980: Area-weighted average percentage built before 1980
+        - total_building_count: Sum of building counts
+        - avg_building_area_sqm: Area-weighted average building area
 
     Notes:
         - Returns zeros for empty tract lists
@@ -150,6 +161,17 @@ def compute_weighted_demographics(tracts: list[CensusTract]) -> dict[str, Any]:
         >>> demo = compute_weighted_demographics(intersecting_tracts)
         >>> print(f"Avg home value: ${demo['avg_median_home_value']:,.0f}")
     """
+    # Default percentile values for empty/zero-area cases
+    _default_pctiles = {
+        f"pctile_{k}": 50.0 for k in [
+            "owner_occupied", "home_value", "roof_age", "income", "density",
+            "single_family", "low_vacancy", "low_cost_burden", "hpi_appreciation",
+            "verified_damage", "climate_weathering", "fema_risk", "canopy_risk",
+            "age_clustering", "pre1980_housing", "svi_vulnerability",
+            "market_activity",
+        ]
+    }
+
     if not tracts:
         return {
             "avg_owner_occupied_pct": 0.0,
@@ -158,6 +180,39 @@ def compute_weighted_demographics(tracts: list[CensusTract]) -> dict[str, Any]:
             "total_housing_units": 0,
             "total_population": 0,
             "avg_housing_density": 0.0,
+            "avg_nri_hail_afreq": 0.0,
+            "avg_nri_hail_ealt": 0.0,
+            "avg_nri_swnd_afreq": 0.0,
+            "avg_nri_swnd_ealt": 0.0,
+            "avg_nri_trnd_afreq": 0.0,
+            "avg_median_household_income": 0.0,
+            "avg_vacancy_rate": 0.0,
+            "avg_single_family_pct": 0.0,
+            "avg_pct_built_before_1980": 0.0,
+            "total_building_count": 0,
+            "avg_building_area_sqm": 0.0,
+            "avg_hail_exposure_score": 0.0,
+            "avg_hail_events_3yr": 0.0,
+            "avg_fema_disaster_score": 0.0,
+            "avg_fema_disaster_count": 0.0,
+            "avg_tree_canopy_mean_pct": 0.0,
+            "avg_tree_canopy_risk_score": 0.0,
+            "avg_dominant_decade_pct": 0.0,
+            "avg_age_clustering_score": 0.0,
+            "avg_pct_cost_burdened": 0.0,
+            "avg_hpi_5yr_change": 0.0,
+            "avg_verified_damage_5yr_usd": 0.0,
+            "avg_verified_events_5yr": 0.0,
+            "avg_freeze_thaw_days": 0.0,
+            "avg_annual_solar_ghi": 0.0,
+            "avg_climate_weathering_score": 0.0,
+            "avg_svi_overall": 0.0,
+            "avg_svi_socioeconomic": 0.0,
+            "avg_svi_housing_type": 0.0,
+            "avg_redfin_median_sale_price": 0.0,
+            "avg_redfin_median_dom": 0.0,
+            "avg_redfin_price_drop_pct": 0.0,
+            **_default_pctiles,
         }
 
     # Calculate total area for weighting
@@ -171,6 +226,39 @@ def compute_weighted_demographics(tracts: list[CensusTract]) -> dict[str, Any]:
             "total_housing_units": sum(t.housing_units or 0 for t in tracts),
             "total_population": sum(t.population or 0 for t in tracts),
             "avg_housing_density": 0.0,
+            "avg_nri_hail_afreq": 0.0,
+            "avg_nri_hail_ealt": 0.0,
+            "avg_nri_swnd_afreq": 0.0,
+            "avg_nri_swnd_ealt": 0.0,
+            "avg_nri_trnd_afreq": 0.0,
+            "avg_median_household_income": 0.0,
+            "avg_vacancy_rate": 0.0,
+            "avg_single_family_pct": 0.0,
+            "avg_pct_built_before_1980": 0.0,
+            "total_building_count": sum(t.building_count or 0 for t in tracts),
+            "avg_building_area_sqm": 0.0,
+            "avg_hail_exposure_score": 0.0,
+            "avg_hail_events_3yr": 0.0,
+            "avg_fema_disaster_score": 0.0,
+            "avg_fema_disaster_count": 0.0,
+            "avg_tree_canopy_mean_pct": 0.0,
+            "avg_tree_canopy_risk_score": 0.0,
+            "avg_dominant_decade_pct": 0.0,
+            "avg_age_clustering_score": 0.0,
+            "avg_pct_cost_burdened": 0.0,
+            "avg_hpi_5yr_change": 0.0,
+            "avg_verified_damage_5yr_usd": 0.0,
+            "avg_verified_events_5yr": 0.0,
+            "avg_freeze_thaw_days": 0.0,
+            "avg_annual_solar_ghi": 0.0,
+            "avg_climate_weathering_score": 0.0,
+            "avg_svi_overall": 0.0,
+            "avg_svi_socioeconomic": 0.0,
+            "avg_svi_housing_type": 0.0,
+            "avg_redfin_median_sale_price": 0.0,
+            "avg_redfin_median_dom": 0.0,
+            "avg_redfin_price_drop_pct": 0.0,
+            **_default_pctiles,
         }
 
     # Area-weighted averages
@@ -178,6 +266,38 @@ def compute_weighted_demographics(tracts: list[CensusTract]) -> dict[str, Any]:
     weighted_home_value = 0.0
     weighted_year_built = 0.0
     weighted_density = 0.0
+    weighted_nri_hail_afreq = 0.0
+    weighted_nri_hail_ealt = 0.0
+    weighted_nri_swnd_afreq = 0.0
+    weighted_nri_swnd_ealt = 0.0
+    weighted_nri_trnd_afreq = 0.0
+    weighted_median_household_income = 0.0
+    weighted_vacancy_rate = 0.0
+    weighted_single_family_pct = 0.0
+    weighted_pct_built_before_1980 = 0.0
+    weighted_building_area_sqm = 0.0
+    weighted_hail_exposure_score = 0.0
+    weighted_hail_events_3yr = 0.0
+    weighted_fema_disaster_score = 0.0
+    weighted_fema_disaster_count = 0.0
+    weighted_tree_canopy_mean_pct = 0.0
+    weighted_tree_canopy_risk_score = 0.0
+    weighted_dominant_decade_pct = 0.0
+    weighted_age_clustering_score = 0.0
+    weighted_pct_cost_burdened = 0.0
+    weighted_hpi_5yr_change = 0.0
+    weighted_verified_damage_5yr_usd = 0.0
+    weighted_verified_events_5yr = 0.0
+    weighted_freeze_thaw_days = 0.0
+    weighted_annual_solar_ghi = 0.0
+    weighted_climate_weathering_score = 0.0
+    weighted_svi_overall = 0.0
+    weighted_svi_socioeconomic = 0.0
+    weighted_svi_housing_type = 0.0
+    weighted_redfin_median_sale_price = 0.0
+    weighted_redfin_median_dom = 0.0
+    weighted_redfin_price_drop_pct = 0.0
+    pctile_accum: dict[str, float] = {}
 
     for tract in tracts:
         if not tract.area_sq_km:
@@ -197,6 +317,119 @@ def compute_weighted_demographics(tracts: list[CensusTract]) -> dict[str, Any]:
         density = compute_housing_density(tract)
         weighted_density += density * weight
 
+        # NRI risk metrics
+        if tract.nri_hail_afreq is not None:
+            weighted_nri_hail_afreq += tract.nri_hail_afreq * weight
+
+        if tract.nri_hail_ealt is not None:
+            weighted_nri_hail_ealt += tract.nri_hail_ealt * weight
+
+        if tract.nri_swnd_afreq is not None:
+            weighted_nri_swnd_afreq += tract.nri_swnd_afreq * weight
+
+        if tract.nri_swnd_ealt is not None:
+            weighted_nri_swnd_ealt += tract.nri_swnd_ealt * weight
+
+        if tract.nri_trnd_afreq is not None:
+            weighted_nri_trnd_afreq += tract.nri_trnd_afreq * weight
+
+        # Additional Census ACS variables
+        if tract.median_household_income is not None:
+            weighted_median_household_income += tract.median_household_income * weight
+
+        if tract.vacancy_rate is not None:
+            weighted_vacancy_rate += tract.vacancy_rate * weight
+
+        if tract.single_family_pct is not None:
+            weighted_single_family_pct += tract.single_family_pct * weight
+
+        if tract.pct_built_before_1980 is not None:
+            weighted_pct_built_before_1980 += tract.pct_built_before_1980 * weight
+
+        # Building footprint data
+        if tract.avg_building_area_sqm is not None:
+            weighted_building_area_sqm += tract.avg_building_area_sqm * weight
+
+        # Historical hail exposure
+        if tract.hail_exposure_score is not None:
+            weighted_hail_exposure_score += tract.hail_exposure_score * weight
+
+        if tract.hail_events_3yr is not None:
+            weighted_hail_events_3yr += tract.hail_events_3yr * weight
+
+        # FEMA disaster declarations
+        if tract.fema_disaster_score is not None:
+            weighted_fema_disaster_score += tract.fema_disaster_score * weight
+
+        if tract.fema_disaster_count is not None:
+            weighted_fema_disaster_count += tract.fema_disaster_count * weight
+
+        # Tree canopy coverage
+        if tract.tree_canopy_mean_pct is not None:
+            weighted_tree_canopy_mean_pct += tract.tree_canopy_mean_pct * weight
+
+        if tract.tree_canopy_risk_score is not None:
+            weighted_tree_canopy_risk_score += tract.tree_canopy_risk_score * weight
+
+        # Age clustering
+        if tract.dominant_decade_pct is not None:
+            weighted_dominant_decade_pct += tract.dominant_decade_pct * weight
+        if tract.age_clustering_score is not None:
+            weighted_age_clustering_score += tract.age_clustering_score * weight
+
+        # Housing cost burden
+        if tract.pct_cost_burdened is not None:
+            weighted_pct_cost_burdened += tract.pct_cost_burdened * weight
+
+        # FHFA House Price Index
+        if tract.hpi_5yr_change is not None:
+            weighted_hpi_5yr_change += tract.hpi_5yr_change * weight
+
+        # NCEI verified damage
+        if tract.verified_damage_5yr_usd is not None:
+            weighted_verified_damage_5yr_usd += tract.verified_damage_5yr_usd * weight
+        if tract.verified_events_5yr is not None:
+            weighted_verified_events_5yr += tract.verified_events_5yr * weight
+
+        # NASA POWER climate weathering
+        if tract.freeze_thaw_days is not None:
+            weighted_freeze_thaw_days += tract.freeze_thaw_days * weight
+        if tract.annual_solar_ghi is not None:
+            weighted_annual_solar_ghi += tract.annual_solar_ghi * weight
+        if tract.climate_weathering_score is not None:
+            weighted_climate_weathering_score += tract.climate_weathering_score * weight
+
+        # CDC SVI
+        if tract.svi_overall is not None:
+            weighted_svi_overall += tract.svi_overall * weight
+        if tract.svi_socioeconomic is not None:
+            weighted_svi_socioeconomic += tract.svi_socioeconomic * weight
+        if tract.svi_housing_type is not None:
+            weighted_svi_housing_type += tract.svi_housing_type * weight
+
+        # Redfin housing market
+        if tract.redfin_median_sale_price is not None:
+            weighted_redfin_median_sale_price += tract.redfin_median_sale_price * weight
+        if tract.redfin_median_dom is not None:
+            weighted_redfin_median_dom += tract.redfin_median_dom * weight
+        if tract.redfin_price_drop_pct is not None:
+            weighted_redfin_price_drop_pct += tract.redfin_price_drop_pct * weight
+
+        # Percentile ranks (from JSONB column)
+        if tract.percentile_ranks:
+            for key, val in tract.percentile_ranks.items():
+                pctile_accum[key] = pctile_accum.get(key, 0.0) + val * weight
+
+    # Build output with pctile_ prefix, default 50.0 for missing keys
+    _pctile_keys = [
+        "owner_occupied", "home_value", "roof_age", "income", "density",
+        "single_family", "low_vacancy", "low_cost_burden", "hpi_appreciation",
+        "verified_damage", "climate_weathering", "fema_risk", "canopy_risk",
+        "age_clustering", "pre1980_housing", "svi_vulnerability",
+        "market_activity",
+    ]
+    pctile_out = {f"pctile_{k}": pctile_accum.get(k, 50.0) for k in _pctile_keys}
+
     return {
         "avg_owner_occupied_pct": weighted_owner_occupied,
         "avg_median_home_value": weighted_home_value,
@@ -204,6 +437,39 @@ def compute_weighted_demographics(tracts: list[CensusTract]) -> dict[str, Any]:
         "total_housing_units": sum(t.housing_units or 0 for t in tracts),
         "total_population": sum(t.population or 0 for t in tracts),
         "avg_housing_density": weighted_density,
+        "avg_nri_hail_afreq": weighted_nri_hail_afreq,
+        "avg_nri_hail_ealt": weighted_nri_hail_ealt,
+        "avg_nri_swnd_afreq": weighted_nri_swnd_afreq,
+        "avg_nri_swnd_ealt": weighted_nri_swnd_ealt,
+        "avg_nri_trnd_afreq": weighted_nri_trnd_afreq,
+        "avg_median_household_income": weighted_median_household_income,
+        "avg_vacancy_rate": weighted_vacancy_rate,
+        "avg_single_family_pct": weighted_single_family_pct,
+        "avg_pct_built_before_1980": weighted_pct_built_before_1980,
+        "total_building_count": sum(t.building_count or 0 for t in tracts),
+        "avg_building_area_sqm": weighted_building_area_sqm,
+        "avg_hail_exposure_score": weighted_hail_exposure_score,
+        "avg_hail_events_3yr": weighted_hail_events_3yr,
+        "avg_fema_disaster_score": weighted_fema_disaster_score,
+        "avg_fema_disaster_count": weighted_fema_disaster_count,
+        "avg_tree_canopy_mean_pct": weighted_tree_canopy_mean_pct,
+        "avg_tree_canopy_risk_score": weighted_tree_canopy_risk_score,
+        "avg_dominant_decade_pct": weighted_dominant_decade_pct,
+        "avg_age_clustering_score": weighted_age_clustering_score,
+        "avg_pct_cost_burdened": weighted_pct_cost_burdened,
+        "avg_hpi_5yr_change": weighted_hpi_5yr_change,
+        "avg_verified_damage_5yr_usd": weighted_verified_damage_5yr_usd,
+        "avg_verified_events_5yr": weighted_verified_events_5yr,
+        "avg_freeze_thaw_days": weighted_freeze_thaw_days,
+        "avg_annual_solar_ghi": weighted_annual_solar_ghi,
+        "avg_climate_weathering_score": weighted_climate_weathering_score,
+        "avg_svi_overall": weighted_svi_overall,
+        "avg_svi_socioeconomic": weighted_svi_socioeconomic,
+        "avg_svi_housing_type": weighted_svi_housing_type,
+        "avg_redfin_median_sale_price": weighted_redfin_median_sale_price,
+        "avg_redfin_median_dom": weighted_redfin_median_dom,
+        "avg_redfin_price_drop_pct": weighted_redfin_price_drop_pct,
+        **pctile_out,
     }
 
 

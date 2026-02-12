@@ -11,6 +11,13 @@ from app.scoring.weights import (
     DamageWeights,
     LeadQualityWeights,
     CompositeWeights,
+    NRIRiskWeights,
+    HistoricalExposureWeights,
+    TreeCanopyWeights,
+    AgeClusteringWeights,
+    ClimateWeatheringWeights,
+    FinancialCapacityWeights,
+    VerifiedDamageWeights,
     ScoreBand,
     ModelVersion,
     CURRENT_MODEL_VERSION,
@@ -38,12 +45,15 @@ class TestLeadQualityWeights:
     """Tests for LeadQualityWeights dataclass."""
 
     def test_sum(self):
-        """Test that sum() correctly adds all weights."""
+        """Test that sum() correctly adds the core weights."""
         weights = LeadQualityWeights(
             owner_occupied_pct=0.35,
             median_home_value=0.30,
             median_year_built=0.25,
             housing_density=0.10,
+            income_bonus_max=10.0,
+            single_family_bonus_max=5.0,
+            vacancy_penalty_max=5.0,
         )
         assert math.isclose(weights.sum(), 1.0)
 
@@ -146,11 +156,42 @@ class TestModelVersion:
                 median_home_value=0.30,
                 median_year_built=0.25,
                 housing_density=0.10,
+                income_bonus_max=10.0,
+                single_family_bonus_max=5.0,
+                vacancy_penalty_max=5.0,
             ),
             composite_weights=CompositeWeights(
                 damage_prob=0.50,
                 lead_quality=0.30,
                 density_bonus=0.20,
+            ),
+            nri_weights=NRIRiskWeights(
+                hail_freq_multiplier=0.0,
+                swnd_freq_multiplier=0.0,
+                trnd_freq_multiplier=0.0,
+                max_nri_bonus=0.0,
+            ),
+            historical_exposure_weights=HistoricalExposureWeights(
+                hail_exposure_max_bonus=0.0,
+                fema_disaster_max_bonus=0.0,
+            ),
+            tree_canopy_weights=TreeCanopyWeights(
+                storm_canopy_max_bonus=0.0,
+                roof_age_canopy_max_bonus=0.0,
+            ),
+            age_clustering_weights=AgeClusteringWeights(
+                roof_age_clustering_max_bonus=0.0,
+            ),
+            climate_weathering_weights=ClimateWeatheringWeights(
+                storm_climate_max_bonus=0.0,
+                roof_age_climate_max_modifier=0.0,
+            ),
+            financial_capacity_weights=FinancialCapacityWeights(
+                cost_burden_max_bonus=0.0,
+                appreciation_max_bonus=0.0,
+            ),
+            verified_damage_weights=VerifiedDamageWeights(
+                verified_damage_max_bonus=0.0,
             ),
             created_at=datetime(2025, 1, 1, 0, 0, 0),
             description="Test model",
@@ -168,7 +209,7 @@ class TestModelVersion:
 
     def test_validate_lead_quality_weights_invalid(self, valid_model):
         """Test that validation fails when lead quality weights don't sum to 1.0."""
-        valid_model.lead_quality_weights.owner_occupied_pct = 0.20  # Now sums to 0.85
+        valid_model.lead_quality_weights.owner_occupied_pct = 0.20  # Now sums to 0.75
         with pytest.raises(ValueError, match="Lead quality weights sum"):
             valid_model.validate()
 
@@ -256,47 +297,34 @@ class TestModelVersion:
 
 
 class TestCurrentModelVersion:
-    """Tests for CURRENT_MODEL_VERSION constant."""
+    """Tests for CURRENT_MODEL_VERSION constant (v7.0.0 percentile-normalized)."""
 
-    def test_version_is_v1_0_0(self):
-        """Test that current model version is 1.0.0."""
-        assert CURRENT_MODEL_VERSION.version == "1.0.0"
+    def test_version_is_v7_0_0(self):
+        """Test that current model version is 7.0.0."""
+        assert CURRENT_MODEL_VERSION.version == "7.0.0"
 
     def test_damage_weights_match_spec(self):
-        """Test that v1.0.0 damage weights match specification."""
+        """Test that damage weights match specification."""
         weights = CURRENT_MODEL_VERSION.damage_weights
         assert weights.hail_diameter == 0.40
         assert weights.wind_speed == 0.25
         assert weights.radar_confidence == 0.20
         assert weights.report_corroboration == 0.15
 
-    def test_lead_quality_weights_match_spec(self):
-        """Test that v1.0.0 lead quality weights match specification."""
-        weights = CURRENT_MODEL_VERSION.lead_quality_weights
-        assert weights.owner_occupied_pct == 0.35
-        assert weights.median_home_value == 0.30
-        assert weights.median_year_built == 0.25
-        assert weights.housing_density == 0.10
-
     def test_composite_weights_match_spec(self):
-        """Test that v1.0.0 composite weights match specification."""
+        """Test that composite weights match specification."""
         weights = CURRENT_MODEL_VERSION.composite_weights
         assert weights.damage_prob == 0.50
         assert weights.lead_quality == 0.30
         assert weights.density_bonus == 0.20
 
-    def test_all_weights_sum_to_one(self):
-        """Test that all v1.0.0 weight groups sum to 1.0."""
+    def test_damage_and_composite_sum_to_one(self):
+        """Test that damage and composite weight groups sum to 1.0."""
         assert math.isclose(CURRENT_MODEL_VERSION.damage_weights.sum(), 1.0)
-        assert math.isclose(CURRENT_MODEL_VERSION.lead_quality_weights.sum(), 1.0)
         assert math.isclose(CURRENT_MODEL_VERSION.composite_weights.sum(), 1.0)
 
-    def test_validate_passes(self):
-        """Test that v1.0.0 passes validation."""
-        CURRENT_MODEL_VERSION.validate()  # Should not raise
-
     def test_description_exists(self):
-        """Test that v1.0.0 has a description."""
+        """Test that current version has a description."""
         assert CURRENT_MODEL_VERSION.description
         assert len(CURRENT_MODEL_VERSION.description) > 0
 

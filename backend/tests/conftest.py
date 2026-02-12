@@ -10,7 +10,7 @@ from app.database import Base
 @pytest.fixture(scope="session")
 def database_url():
     """Test database URL - override in CI/CD."""
-    return "postgresql+asyncpg://postgres:postgres@localhost:5432/stormleads_test"
+    return "postgresql+psycopg://postgres:postgres@localhost:5432/stormleads_test"
 
 
 @pytest_asyncio.fixture(scope="function")

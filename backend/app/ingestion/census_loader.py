@@ -35,6 +35,30 @@ ACS_VARIABLES = {
     "B25077_001E": "median_home_value",  # Median home value
     "B01003_001E": "population",  # Total population
     "B25001_001E": "housing_units",  # Total housing units
+    "B19013_001E": "median_household_income",
+    "B25002_001E": "total_housing_occupancy",
+    "B25002_003E": "vacant_housing_units",
+    "B25024_002E": "units_1_detached",
+    "B25024_003E": "units_1_attached",
+    "B25034_001E": "year_built_total",
+    "B25034_002E": "built_2020_or_later",
+    "B25034_003E": "built_2010_2019",
+    "B25034_004E": "built_2000_2009",
+    "B25034_005E": "built_1990_1999",
+    "B25034_006E": "built_1980_1989",
+    "B25034_007E": "built_1970_1979",
+    "B25034_008E": "built_1960_1969",
+    "B25034_009E": "built_1950_1959",
+    "B25034_010E": "built_1940_1949",
+    "B25034_011E": "built_before_1940",
+    # Housing Cost Burden (B25091)
+    "B25091_001E": "cost_burden_total",
+    "B25091_002E": "cost_burden_with_mortgage",
+    "B25091_008E": "mortgage_30_34_pct",
+    "B25091_009E": "mortgage_35_plus_pct",
+    "B25091_010E": "cost_burden_no_mortgage",
+    "B25091_019E": "no_mortgage_30_34_pct",
+    "B25091_020E": "no_mortgage_35_plus_pct",
 }
 
 # Census API base URL
@@ -252,6 +276,113 @@ def parse_acs_value(value: str | None) -> int | float | None:
         return None
 
 
+def compute_vacancy_rate(total_occupancy_str, vacant_str):
+    """Compute vacancy rate as percentage. Returns None if data missing."""
+    total = parse_acs_value(total_occupancy_str)
+    vacant = parse_acs_value(vacant_str)
+    if total and vacant is not None and total > 0:
+        return (vacant / total) * 100.0
+    return None
+
+
+def compute_single_family_pct(detached_str, attached_str, total_units_str):
+    """Compute single-family housing percentage. Returns None if data missing."""
+    detached = parse_acs_value(detached_str)
+    attached = parse_acs_value(attached_str)
+    total = parse_acs_value(total_units_str)
+    if detached is not None and attached is not None and total and total > 0:
+        return ((detached + attached) / total) * 100.0
+    return None
+
+
+def compute_pct_built_before_1980(total_str, b1970_str, b1960_str, b1950_str, b1940_str, pre1940_str):
+    """Compute percentage of housing built before 1980. Returns None if data missing."""
+    total = parse_acs_value(total_str)
+    vals = [parse_acs_value(s) for s in [b1970_str, b1960_str, b1950_str, b1940_str, pre1940_str]]
+    if total and total > 0 and all(v is not None for v in vals):
+        return (sum(vals) / total) * 100.0
+    return None
+
+
+def compute_age_clustering(acs_row: dict) -> dict:
+    """Compute subdivision age clustering from B25034 decade distribution.
+
+    Uses Herfindahl-Hirschman Index (HHI) on decade shares to measure
+    concentration. High HHI = most housing in a few decades = subdivision.
+
+    Returns:
+        Dict with dominant_decade, dominant_decade_pct, age_hhi, age_clustering_score.
+        All None if insufficient data.
+    """
+    decade_vars = [
+        ("B25034_002E", "2020s"),
+        ("B25034_003E", "2010s"),
+        ("B25034_004E", "2000s"),
+        ("B25034_005E", "1990s"),
+        ("B25034_006E", "1980s"),
+        ("B25034_007E", "1970s"),
+        ("B25034_008E", "1960s"),
+        ("B25034_009E", "1950s"),
+        ("B25034_010E", "1940s"),
+        ("B25034_011E", "pre-1940"),
+    ]
+
+    total = parse_acs_value(acs_row.get("B25034_001E"))
+    if not total or total <= 0:
+        return {
+            "dominant_decade": None,
+            "dominant_decade_pct": None,
+            "age_hhi": None,
+            "age_clustering_score": None,
+        }
+
+    counts = [(parse_acs_value(acs_row.get(var)) or 0, label) for var, label in decade_vars]
+    shares = [(c / total, label) for c, label in counts]
+
+    # HHI = sum of squared shares
+    hhi = sum(s ** 2 for s, _ in shares)
+
+    # Dominant decade
+    dominant_count, dominant_label = max(counts, key=lambda x: x[0])
+    dominant_pct = (dominant_count / total) * 100
+
+    # Clustering score: HHI normalized to 0-100
+    # HHI ranges from ~0.10 (uniform across 10 decades) to 1.0 (all one decade)
+    age_clustering_score = max(0, min((hhi - 0.1) / 0.9 * 100, 100))
+
+    return {
+        "dominant_decade": dominant_label,
+        "dominant_decade_pct": round(dominant_pct, 1),
+        "age_hhi": round(hhi, 4),
+        "age_clustering_score": round(age_clustering_score, 1),
+    }
+
+
+def compute_cost_burden(acs_row: dict) -> float | None:
+    """Compute percentage of owner-occupied units that are cost-burdened.
+
+    Cost-burdened = spending 30%+ of income on housing costs.
+    Uses ACS B25091 (mortgage status by selected monthly owner costs as % of income).
+
+    Returns:
+        Percentage (0-100) or None if data missing.
+    """
+    total = parse_acs_value(acs_row.get("B25091_001E"))
+    if not total or total <= 0:
+        return None
+
+    # With mortgage: costs 30-34.9% + costs 35%+
+    m_30_34 = parse_acs_value(acs_row.get("B25091_008E")) or 0
+    m_35_plus = parse_acs_value(acs_row.get("B25091_009E")) or 0
+
+    # Without mortgage: costs 30-34.9% + costs 35%+
+    nm_30_34 = parse_acs_value(acs_row.get("B25091_019E")) or 0
+    nm_35_plus = parse_acs_value(acs_row.get("B25091_020E")) or 0
+
+    cost_burdened_count = m_30_34 + m_35_plus + nm_30_34 + nm_35_plus
+    return round((cost_burdened_count / total) * 100.0, 2)
+
+
 async def bulk_upsert_tracts(
     session: AsyncSession,
     tracts: list[dict[str, Any]],
@@ -425,6 +556,21 @@ async def load_census_data(
                     "population": int(population) if population else None,
                     "housing_units": int(housing_units) if housing_units else None,
                     "area_sq_km": area_sq_km,
+                    "median_household_income": parse_acs_value(acs_row.get("B19013_001E")),
+                    "vacancy_rate": compute_vacancy_rate(
+                        acs_row.get("B25002_001E"), acs_row.get("B25002_003E")
+                    ),
+                    "single_family_pct": compute_single_family_pct(
+                        acs_row.get("B25024_002E"), acs_row.get("B25024_003E"),
+                        acs_row.get("B25001_001E")
+                    ),
+                    "pct_built_before_1980": compute_pct_built_before_1980(
+                        acs_row.get("B25034_001E"), acs_row.get("B25034_007E"),
+                        acs_row.get("B25034_008E"), acs_row.get("B25034_009E"),
+                        acs_row.get("B25034_010E"), acs_row.get("B25034_011E")
+                    ),
+                    **compute_age_clustering(acs_row),
+                    "pct_cost_burdened": compute_cost_burden(acs_row),
                 }
 
                 tracts_to_insert.append(tract_dict)

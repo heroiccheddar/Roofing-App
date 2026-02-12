@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.api.auth import router as auth_router
 from app.api.zones import router as zones_router
+from app.api.feedback import router as feedback_router
 from app.scheduler.jobs import (
     job_poll_nws,
     job_scrape_spc,
@@ -96,6 +97,7 @@ app.add_middleware(
 # API routers
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(zones_router, prefix="/api/v1")
+app.include_router(feedback_router, prefix="/api/v1")
 
 
 @app.get("/health")

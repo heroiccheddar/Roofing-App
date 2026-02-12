@@ -50,8 +50,8 @@ STATE_FIPS_MAP = {
     "VA": "51", "WA": "53", "WV": "54", "WI": "55", "WY": "56",
 }
 
-# Default hail corridor states
-DEFAULT_STATES = ["48", "40", "20", "08", "31"]  # TX, OK, KS, CO, NE
+# Default POC state
+DEFAULT_STATES = ["13"]  # GA
 
 
 def parse_state_codes(state_args: list[str]) -> list[str]:
