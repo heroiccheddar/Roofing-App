@@ -329,14 +329,18 @@ function MapView() {
     }
   }, [geojson, mapLoaded])
 
-  // Fit bounds once on first load (removed expensive per-feature iteration)
+  // Fit bounds once on first load — only when no home location is set
+  // (if home is set, the map already initialized centered on it)
   useEffect(() => {
     const map = mapRef.current
     if (!map || !mapLoaded || fittedRef.current) return
     if (!geojson?.features?.length) return
 
     fittedRef.current = true
-    // Use first few features to approximate bounds
+
+    // Skip fitBounds when we already centered on home
+    if (useAppStore.getState().homeLat != null) return
+
     const bounds = new mapboxgl.LngLatBounds()
     const sample = geojson.features.slice(0, 50)
     for (const feature of sample) {
