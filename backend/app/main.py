@@ -4,6 +4,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,11 +13,17 @@ from app.config import settings
 from app.api.auth import router as auth_router
 from app.api.zones import router as zones_router
 from app.api.feedback import router as feedback_router
+from app.api.account import router as account_router
+from app.api.alerts import router as alerts_router
+from app.api.canvass import router as canvass_router
+from app.api.recommend import router as recommend_router
+from app.api.route import router as route_router
 from app.scheduler.jobs import (
     job_poll_nws,
     job_scrape_spc,
     job_deduplicate,
-    job_run_scoring,
+    job_run_storm_scoring,
+    job_run_base_scoring,
     job_expire_zones,
 )
 
@@ -51,10 +58,17 @@ async def lifespan(app: FastAPI):
         replace_existing=True,
     )
     scheduler.add_job(
-        job_run_scoring,
+        job_run_storm_scoring,
         IntervalTrigger(minutes=10),
-        id="scoring",
-        name="Lead Zone Scoring",
+        id="storm_scoring",
+        name="Storm Event Rescore",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        job_run_base_scoring,
+        CronTrigger(hour=2, minute=0),
+        id="base_scoring",
+        name="Daily Base Score Refresh",
         replace_existing=True,
     )
     scheduler.add_job(
@@ -66,8 +80,9 @@ async def lifespan(app: FastAPI):
     )
     scheduler.start()
     logger.info(
-        "APScheduler started with 5 jobs: "
-        "nws_poll (5m), spc_scrape (6h), dedup (30m), scoring (10m), zone_expiry (1h)"
+        "APScheduler started with 6 jobs: "
+        "nws_poll (5m), spc_scrape (6h), dedup (30m), "
+        "storm_scoring (10m), base_scoring (daily 02:00 UTC), zone_expiry (1h)"
     )
 
     yield
@@ -78,9 +93,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="StormLeads API",
-    description="Storm damage lead generation for roofers",
-    version="0.1.0",
+    title="RoofIQ API",
+    description="Roofing lead intelligence platform",
+    version="0.2.0",
     lifespan=lifespan,
 )
 
@@ -98,9 +113,14 @@ app.add_middleware(
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(zones_router, prefix="/api/v1")
 app.include_router(feedback_router, prefix="/api/v1")
+app.include_router(account_router, prefix="/api/v1")
+app.include_router(alerts_router, prefix="/api/v1")
+app.include_router(canvass_router, prefix="/api/v1")
+app.include_router(recommend_router, prefix="/api/v1")
+app.include_router(route_router, prefix="/api/v1")
 
 
 @app.get("/health")
 async def health_check():
     """Health check endpoint for App Runner."""
-    return {"status": "healthy", "service": "stormleads-api"}
+    return {"status": "healthy", "service": "roofiq-api"}

@@ -4,6 +4,8 @@ Allows roofers to submit simplified feedback after canvassing zones.
 Replaces complex canvass_session model with basic rating + notes approach.
 """
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -81,6 +83,9 @@ async def submit_zone_feedback(
     try:
         await db.commit()
         await db.refresh(feedback)
+        # Update zone staleness tracking
+        zone.last_canvassed_at = datetime.now(timezone.utc)
+        await db.commit()
     except IntegrityError as e:
         await db.rollback()
         # Check if it's the unique constraint violation

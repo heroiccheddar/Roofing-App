@@ -11,7 +11,7 @@ function FeedbackHistory() {
   return (
     <div style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto' }}>
       <h1>Canvassing Feedback</h1>
-      <FeedbackForm />
+      <FeedbackForm zoneId="" />
       <div style={{ marginTop: '2rem' }}>
         <h2>Your Feedback History</h2>
         <p>Feedback history list will be implemented in WP 4.3</p>

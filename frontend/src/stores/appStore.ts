@@ -17,15 +17,35 @@ interface AppState {
   filters: {
     minScore: number
     maxDistanceKm: number
-    leadType: 'storm' | 'roof_age' | 'all'
+    leadType: 'standard' | 'storm_boosted' | 'all'
     dateRange: [string, string] | null
   }
+  listViewMode: 'cards' | 'table'
+  sortBy: 'score' | 'nearest' | 'route'
+  activeCanvassSessionId: string | null
+  mapZoom: number
+  darkMode: boolean
+  routeZoneIds: string[]
+  routeGeometry: any | null
+  isOffline: boolean
+  pendingQueueCount: number
   setUser: (user: User | null) => void
   setToken: (token: string | null) => void
   setSelectedZoneId: (zoneId: string | null) => void
   setMapBounds: (bounds: [number, number, number, number] | null) => void
   setHome: (lat: number, lon: number) => void
   setFilters: (filters: Partial<AppState['filters']>) => void
+  setListViewMode: (mode: 'cards' | 'table') => void
+  setSortBy: (sortBy: 'score' | 'nearest' | 'route') => void
+  setActiveCanvassSessionId: (id: string | null) => void
+  setMapZoom: (zoom: number) => void
+  setDarkMode: (dark: boolean) => void
+  setRouteZoneIds: (ids: string[]) => void
+  setRouteGeometry: (geom: any | null) => void
+  setIsOffline: (offline: boolean) => void
+  setPendingQueueCount: (count: number) => void
+  toggleZoneInRoute: (zoneId: string) => void
+  clearRoute: () => void
   logout: () => void
 }
 
@@ -43,6 +63,15 @@ const useAppStore = create<AppState>((set) => ({
     leadType: 'all',
     dateRange: null,
   },
+  listViewMode: 'cards',
+  sortBy: 'score',
+  activeCanvassSessionId: null,
+  mapZoom: 5,
+  darkMode: localStorage.getItem('roofiq_dark_mode') === 'true',
+  routeZoneIds: [],
+  routeGeometry: null,
+  isOffline: typeof navigator !== 'undefined' ? !navigator.onLine : false,
+  pendingQueueCount: 0,
 
   // Actions
   setUser: (user) => set({ user }),
@@ -54,6 +83,23 @@ const useAppStore = create<AppState>((set) => ({
     set((state) => ({
       filters: { ...state.filters, ...newFilters },
     })),
+  setListViewMode: (mode) => set({ listViewMode: mode }),
+  setSortBy: (sortBy) => set({ sortBy }),
+  setActiveCanvassSessionId: (id) => set({ activeCanvassSessionId: id }),
+  setMapZoom: (zoom) => set({ mapZoom: zoom }),
+  setDarkMode: (dark) => set({ darkMode: dark }),
+  setRouteZoneIds: (ids) => set({ routeZoneIds: ids }),
+  setRouteGeometry: (geom) => set({ routeGeometry: geom }),
+  setIsOffline: (offline) => set({ isOffline: offline }),
+  setPendingQueueCount: (count) => set({ pendingQueueCount: count }),
+  toggleZoneInRoute: (zoneId) =>
+    set((state) => {
+      const ids = state.routeZoneIds.includes(zoneId)
+        ? state.routeZoneIds.filter((id) => id !== zoneId)
+        : [...state.routeZoneIds, zoneId].slice(0, 10)
+      return { routeZoneIds: ids }
+    }),
+  clearRoute: () => set({ routeZoneIds: [], routeGeometry: null }),
   logout: () => {
     clearAuthToken()
     set({ user: null, token: null, selectedZoneId: null })

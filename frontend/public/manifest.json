@@ -1,11 +1,13 @@
 {
-  "name": "StormLeads",
-  "short_name": "StormLeads",
-  "description": "Storm damage lead generation for roofing professionals",
+  "name": "RoofIQ",
+  "short_name": "RoofIQ",
+  "description": "Roofing lead intelligence for field professionals",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#2563eb",
+  "orientation": "portrait-primary",
+  "categories": ["business", "productivity"],
   "icons": [
     {
       "src": "/icon-192.png",

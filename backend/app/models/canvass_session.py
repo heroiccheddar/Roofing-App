@@ -42,7 +42,7 @@ class CanvassSession(Base):
     )
 
     # Tier 1: Required feedback (star rating)
-    rating = Column(Integer, nullable=False)  # 1-5 stars
+    rating = Column(Integer, nullable=True)  # 1-5 stars, set when session ends
 
     # Tier 2: Encouraged feedback (basic metrics)
     doors_knocked = Column(Integer, nullable=True)

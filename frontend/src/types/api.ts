@@ -1,7 +1,7 @@
 /**
  * TypeScript types matching Pydantic API schemas.
  *
- * These types define the API contract for the StormLeads frontend.
+ * These types define the API contract for the RoofIQ frontend.
  * All datetime fields are strings (ISO 8601 format), UUIDs are strings.
  */
 
@@ -70,7 +70,7 @@ export interface AccountResponse {
 export interface ZoneListParams {
   min_score?: number;
   hail_min?: number;
-  lead_type?: 'storm' | 'roof_age';
+  lead_type?: 'standard' | 'storm_boosted'; // filter: 'all' | 'standard' | 'storm_boosted'
   sort_by?: 'score' | 'time' | 'hail';
   page?: number;
   page_size?: number;
@@ -115,8 +115,28 @@ export interface ZoneResponse {
   centroid_lat: number;
   centroid_lon: number;
 
+  // Display
+  display_name?: string;
+
   // Timestamps
   created_at: string;
+
+  // Unified sub-scores
+  roof_condition?: number;
+  market_quality?: number;
+  risk_exposure?: number;
+  canvass_efficiency?: number;
+  storm_boost?: number;
+  base_score?: number;
+  has_active_storm?: boolean;
+}
+
+export interface ScoreFactor {
+  name: string;
+  label: string;
+  percentile: number;
+  weight: number;
+  contribution: number;
 }
 
 export interface ZoneDetailResponse extends ZoneResponse {
@@ -158,6 +178,7 @@ export interface ZoneDetailResponse extends ZoneResponse {
   redfin_median_sale_price?: number;
   redfin_median_dom?: number;
   redfin_price_drop_pct?: number;
+  score_factors?: ScoreFactor[];
 }
 
 export interface ZoneListResponse {
@@ -183,6 +204,58 @@ export interface ZoneGeoJSONResponse {
   features: ZoneGeoJSONFeature[];
 }
 
+export interface TractGeoJSONResponse {
+  type: 'FeatureCollection';
+  features: ZoneGeoJSONFeature[];
+}
+
+// ===== Recommendations =====
+
+export interface RecommendedZone {
+  zone_id: string;
+  h3_index: string;
+  display_name?: string;
+  composite_score: number;
+  recommendation_score: number;
+  distance_km: number;
+  last_canvassed_at?: string;
+  has_active_storm: boolean;
+  storm_boost?: number;
+  centroid_lat: number;
+  centroid_lon: number;
+  score_band: string;
+  reason: string;
+}
+
+export interface RecommendationResponse {
+  zones: RecommendedZone[];
+  generated_at: string;
+}
+
+// ===== Route Planning =====
+
+export interface RouteRequest {
+  zone_ids: string[];
+  start_lat: number;
+  start_lon: number;
+}
+
+export interface RouteWaypoint {
+  zone_id: string;
+  display_name?: string;
+  lat: number;
+  lon: number;
+  order: number;
+}
+
+export interface RouteResponse {
+  waypoints: RouteWaypoint[];
+  geometry: { type: string; coordinates: number[][] };
+  total_distance_km: number;
+  total_duration_minutes: number;
+  generated_at: string;
+}
+
 // ===== Zone Feedback (POC) =====
 
 export interface ZoneFeedbackCreate {
@@ -204,6 +277,51 @@ export interface ZoneFeedbackResponse {
 
 export interface ZoneFeedbackListResponse {
   feedbacks: ZoneFeedbackResponse[];
+  total: number;
+}
+
+// ===== Canvass Sessions =====
+
+export interface CanvassSessionCreate {
+  notes?: string;
+}
+
+export interface CanvassSessionUpdate {
+  doors_knocked?: number;
+  doors_answered?: number;
+  visible_damage_count?: number;
+  homeowner_interested?: number;
+  inspections_scheduled?: number;
+  contracts_signed?: number;
+  estimated_revenue?: number;
+  roof_type?: string;
+  competitor_presence?: string;
+  rating?: number;
+  notes?: string;
+}
+
+export interface CanvassSessionResponse {
+  id: string;
+  lead_zone_id: string;
+  roofer_account_id: string;
+  rating?: number | null;
+  doors_knocked?: number | null;
+  doors_answered?: number | null;
+  visible_damage_count?: number | null;
+  homeowner_interested?: number | null;
+  inspections_scheduled?: number | null;
+  contracts_signed?: number | null;
+  estimated_revenue?: number | null;
+  roof_type?: string | null;
+  competitor_presence?: string | null;
+  notes?: string | null;
+  zone_score_at_time?: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CanvassSessionListResponse {
+  sessions: CanvassSessionResponse[];
   total: number;
 }
 

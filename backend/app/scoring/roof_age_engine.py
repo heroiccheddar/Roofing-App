@@ -25,11 +25,15 @@ from app.scoring.spatial import (
     point_to_h3,
 )
 
+from app.services.geocoding import reverse_geocode
+from app.config import settings
+
 logger = logging.getLogger(__name__)
 from app.scoring.weights import (
     ROOF_AGE_MODEL_VERSION,
     get_score_band,
     get_predicted_conversion_rate,
+    renormalize_scores,
 )
 
 
@@ -163,35 +167,68 @@ async def run_roof_age_pipeline(
             stats["errors"] += 1
             continue
 
-    # Process each H3 hex
-    current_time = datetime.now(timezone.utc)
-    expires_at = current_time + timedelta(days=180)  # 180-day expiration
+    # --- Pass 1: Compute raw scores for all hexes ---
     total_hexes = len(h3_to_tracts)
-    logger.info(f"Processing {total_hexes} H3 hexes from {stats['tracts_processed']} tracts")
+    logger.info(f"Pass 1: Computing raw scores for {total_hexes} H3 hexes from {stats['tracts_processed']} tracts")
+
+    zone_results = []  # Buffer: (h3_index, boundary_wkt, centroid_wkt, scores)
 
     for idx, (h3_index, tract_group) in enumerate(h3_to_tracts.items()):
-        if idx % 50 == 0:
-            logger.info(f"  Processing hex {idx + 1}/{total_hexes}...")
+        if idx % 500 == 0:
+            logger.info(f"  Scoring hex {idx + 1}/{total_hexes}...")
 
         try:
-            # Build H3 boundary geometry
             boundary_wkt, centroid_wkt = build_zone_boundary(h3_index)
-
-            # Use pre-grouped tracts directly (avoids expensive per-hex spatial queries)
             demographics = compute_weighted_demographics(tract_group)
 
-            # Skip if no meaningful year built data
             if demographics["avg_median_year_built"] == 0:
                 continue
 
-            # Compute roof age score
             scores = compute_roof_age_score(demographics)
+            zone_results.append((h3_index, boundary_wkt, centroid_wkt, scores))
 
-            # Get score band and predicted conversion
-            score_band = get_score_band(scores["composite_score"])
-            predicted_conversion = get_predicted_conversion_rate(scores["composite_score"])
+        except Exception as e:
+            logger.error(f"Error scoring hex {h3_index}: {e}")
+            stats["errors"] += 1
 
-            # Check if zone already exists
+    # --- Re-normalize composite scores across all zones ---
+    raw_scores = [r[3]["composite_score"] for r in zone_results]
+
+    if raw_scores:
+        import statistics
+        raw_avg = statistics.mean(raw_scores)
+        raw_std = statistics.stdev(raw_scores) if len(raw_scores) > 1 else 0.0
+        logger.info(
+            f"Raw scores: n={len(raw_scores)} avg={raw_avg:.1f} "
+            f"std={raw_std:.1f} min={min(raw_scores):.1f} max={max(raw_scores):.1f}"
+        )
+
+    normalized_scores = renormalize_scores(raw_scores)
+
+    if normalized_scores:
+        import statistics
+        norm_avg = statistics.mean(normalized_scores)
+        norm_std = statistics.stdev(normalized_scores) if len(normalized_scores) > 1 else 0.0
+        logger.info(
+            f"Normalized:  n={len(normalized_scores)} avg={norm_avg:.1f} "
+            f"std={norm_std:.1f} min={min(normalized_scores):.1f} max={max(normalized_scores):.1f}"
+        )
+
+    # --- Pass 2: Write zones with normalized scores ---
+    current_time = datetime.now(timezone.utc)
+    expires_at = current_time + timedelta(days=180)
+    logger.info(f"Pass 2: Writing {len(zone_results)} zones with re-normalized scores...")
+
+    band_counts = {"hot": 0, "warm": 0, "cool": 0, "skip": 0}
+
+    for idx, ((h3_index, boundary_wkt, centroid_wkt, scores), norm_score) in enumerate(
+        zip(zone_results, normalized_scores)
+    ):
+        try:
+            score_band = get_score_band(norm_score)
+            predicted_conversion = get_predicted_conversion_rate(norm_score)
+            band_counts[score_band.band_name] += 1
+
             existing_zone_stmt = select(LeadZone).where(
                 LeadZone.h3_index == h3_index,
                 LeadZone.lead_type == "roof_age",
@@ -200,10 +237,9 @@ async def run_roof_age_pipeline(
             existing_zone = existing_result.scalar_one_or_none()
 
             if existing_zone:
-                # Update existing zone
-                existing_zone.composite_score = scores["composite_score"]
+                existing_zone.composite_score = norm_score
                 existing_zone.damage_prob = scores["damage_prob"]
-                existing_zone.lead_quality = scores["lead_quality"]
+                existing_zone.lead_quality = norm_score
                 existing_zone.density_bonus = scores["density_bonus"]
                 existing_zone.predicted_conversion_rate = predicted_conversion
                 existing_zone.score_band = score_band.band_name
@@ -212,19 +248,30 @@ async def run_roof_age_pipeline(
                 existing_zone.expires_at = expires_at
                 existing_zone.active = True
                 existing_zone.updated_at = current_time
-
                 stats["zones_updated"] += 1
-
             else:
-                # Create new zone
+                # Geocode display name for new zones
+                display_name = None
+                if settings.MAPBOX_TOKEN:
+                    try:
+                        from shapely import wkt
+                        centroid_geom = wkt.loads(centroid_wkt)
+                        display_name = reverse_geocode(
+                            lon=centroid_geom.x, lat=centroid_geom.y,
+                            mapbox_token=settings.MAPBOX_TOKEN,
+                        )
+                    except Exception:
+                        pass  # Non-critical — backfill handles existing zones
+
                 new_zone = LeadZone(
                     boundary=WKTElement(boundary_wkt, srid=4326),
                     centroid=WKTElement(centroid_wkt, srid=4326),
                     h3_index=h3_index,
+                    display_name=display_name,
                     lead_type="roof_age",
-                    composite_score=scores["composite_score"],
+                    composite_score=norm_score,
                     damage_prob=scores["damage_prob"],
-                    lead_quality=scores["lead_quality"],
+                    lead_quality=norm_score,
                     density_bonus=scores["density_bonus"],
                     predicted_conversion_rate=predicted_conversion,
                     score_band=score_band.band_name,
@@ -237,24 +284,27 @@ async def run_roof_age_pipeline(
                     expires_at=expires_at,
                     active=True,
                 )
-
                 session.add(new_zone)
                 stats["zones_created"] += 1
 
         except Exception as e:
-            logger.error(f"Error processing hex {h3_index}: {e}")
+            logger.error(f"Error writing hex {h3_index}: {e}")
             stats["errors"] += 1
             continue
 
-        # Batch commit every 50 hexes
-        if (idx + 1) % 50 == 0:
+        if (idx + 1) % 500 == 0:
             await session.commit()
+            logger.info(f"  Committed {idx + 1}/{len(zone_results)} zones...")
 
-    # Final commit
     await session.commit()
+
     logger.info(
         f"Roof age pipeline complete: {stats['zones_created']} created, "
         f"{stats['zones_updated']} updated, {stats['errors']} errors"
+    )
+    logger.info(
+        f"Band distribution: hot={band_counts['hot']} warm={band_counts['warm']} "
+        f"cool={band_counts['cool']} skip={band_counts['skip']}"
     )
 
     return stats

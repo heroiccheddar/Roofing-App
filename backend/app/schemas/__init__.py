@@ -28,6 +28,16 @@ from app.schemas.zones import (
     ZoneGeoJSONFeature,
     ZoneGeoJSONResponse,
     GeoJSONGeometry,
+    TractProperties,
+    TractGeoJSONResponse,
+)
+
+# Canvass sessions
+from app.schemas.canvass_session import (
+    CanvassSessionCreate,
+    CanvassSessionUpdate,
+    CanvassSessionResponse,
+    CanvassSessionListResponse,
 )
 
 # Zone feedback (POC)
@@ -49,6 +59,12 @@ from app.schemas.internal import (
     ModelDeployRequest,
     ModelDeployResponse,
 )
+
+# Recommendations
+from app.schemas.recommend import RecommendedZone, RecommendationResponse
+
+# Route optimization
+from app.schemas.route import RouteRequest, RouteWaypoint, RouteResponse
 
 __all__ = [
     # Common
@@ -72,6 +88,13 @@ __all__ = [
     "ZoneGeoJSONFeature",
     "ZoneGeoJSONResponse",
     "GeoJSONGeometry",
+    "TractProperties",
+    "TractGeoJSONResponse",
+    # Canvass sessions
+    "CanvassSessionCreate",
+    "CanvassSessionUpdate",
+    "CanvassSessionResponse",
+    "CanvassSessionListResponse",
     # Zone feedback
     "ZoneFeedbackCreate",
     "ZoneFeedbackResponse",
@@ -86,4 +109,11 @@ __all__ = [
     "WeightProposal",
     "ModelDeployRequest",
     "ModelDeployResponse",
+    # Recommendations
+    "RecommendedZone",
+    "RecommendationResponse",
+    # Route optimization
+    "RouteRequest",
+    "RouteWaypoint",
+    "RouteResponse",
 ]

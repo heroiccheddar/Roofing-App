@@ -16,10 +16,10 @@ from typing import Dict, Any
 class ScoreBand(Enum):
     """Score band classifications with ranges and predicted conversion rates."""
 
-    HOT = ("hot", 80, 100, 0.12)
-    WARM = ("warm", 60, 79, 0.07)
-    COOL = ("cool", 40, 59, 0.03)
-    SKIP = ("skip", 0, 39, 0.01)
+    HOT = ("hot", 70, 100, 0.12)
+    WARM = ("warm", 50, 69, 0.07)
+    COOL = ("cool", 30, 49, 0.03)
+    SKIP = ("skip", 0, 29, 0.01)
 
     def __init__(self, band_name: str, min_score: float, max_score: float, conversion_rate: float):
         self.band_name = band_name
@@ -30,11 +30,11 @@ class ScoreBand(Enum):
     @classmethod
     def from_score(cls, score: float) -> "ScoreBand":
         """Return the score band for a given composite score."""
-        if score >= 80:
+        if score >= 70:
             return cls.HOT
-        elif score >= 60:
+        elif score >= 50:
             return cls.WARM
-        elif score >= 40:
+        elif score >= 30:
             return cls.COOL
         else:
             return cls.SKIP
@@ -959,6 +959,54 @@ def get_predicted_conversion_for_band(band: ScoreBand) -> float:
     return band.conversion_rate
 
 
+def renormalize_scores(
+    raw_scores: list[float],
+    low_pct: float = 2.0,
+    high_pct: float = 98.0,
+) -> list[float]:
+    """Re-normalize scores to fill 0-100 using a sigmoid (logistic) stretch.
+
+    Instead of linear min-max scaling which hard-clips at 0 and 100, this
+    uses a logistic function centered on the median. The slope is calibrated
+    so that the low_pct percentile maps to ~2 and the high_pct percentile
+    maps to ~98, but extreme scores smoothly asymptote toward 0/100 without
+    ever piling up at the boundaries.
+
+    Args:
+        raw_scores: List of raw composite scores
+        low_pct: Lower percentile for slope calibration (default 2nd)
+        high_pct: Upper percentile for slope calibration (default 98th)
+
+    Returns:
+        List of re-normalized scores in same order as input
+    """
+    import math
+
+    if len(raw_scores) < 2:
+        return list(raw_scores)
+
+    sorted_scores = sorted(raw_scores)
+    n = len(sorted_scores)
+    median = sorted_scores[n // 2]
+    p_low = sorted_scores[max(0, int(n * low_pct / 100))]
+    p_high = sorted_scores[min(n - 1, int(n * high_pct / 100))]
+
+    if p_high <= p_low:
+        return [50.0] * len(raw_scores)
+
+    # Calibrate slope: we want sigmoid(p_high) ≈ 0.98
+    # sigmoid(x) = 1 / (1 + exp(-k*(x - median)))
+    # 0.98 = 1 / (1 + exp(-k*(p_high - median)))
+    # => k = -ln(1/0.98 - 1) / (p_high - median) = ln(49) / (p_high - median)
+    half_span = max(p_high - median, median - p_low)
+    k = math.log(49) / half_span  # ln(49) ≈ 3.89
+
+    return [
+        round(100.0 / (1.0 + math.exp(-k * (s - median))), 2)
+        for s in raw_scores
+    ]
+
+
 @dataclass
 class RoofAgeCompositeWeights:
     """Weights for roof-age-based lead scoring (no storm component)."""
@@ -1085,7 +1133,7 @@ V8_ROOF_AGE_MODEL_VERSION = RoofAgeModelVersion(
     description="v8.0.0: Adds CDC SVI social vulnerability percentile feature",
 )
 
-ROOF_AGE_MODEL_VERSION = RoofAgeModelVersion(
+V9_ROOF_AGE_MODEL_VERSION = RoofAgeModelVersion(
     version="9.0.0-roof-age",
     weights=RoofAgeCompositeWeights(
         roof_age=0.25,
@@ -1095,4 +1143,174 @@ ROOF_AGE_MODEL_VERSION = RoofAgeModelVersion(
     ),
     created_at=datetime(2026, 2, 12, 1, 0, 0),
     description="v9.0.0: Adds Redfin market_activity percentile feature",
+)
+
+ROOF_AGE_MODEL_VERSION = RoofAgeModelVersion(
+    version="10.0.0-roof-age",
+    weights=RoofAgeCompositeWeights(
+        roof_age=0.25,
+        owner_occupied=0.12,
+        home_value=0.08,
+        housing_density=0.06,
+    ),
+    created_at=datetime(2026, 2, 12, 12, 0, 0),
+    description="v10.0.0: Percentile-based score re-normalization for full 0-100 range spread",
+)
+
+
+# ---------------------------------------------------------------------------
+# v11.0.0 — Unified roofing lead intelligence model
+#
+# Replaces the dual-engine (storm + roof_age) design with a single zone per
+# H3 hex that carries 4 orthogonal sub-scores and an optional storm boost.
+#
+# Composite formula (no storm):  base_score = rc*0.35 + mq*0.30 + re*0.20 + ce*0.15
+# Composite formula (storm):     composite  = base_score*0.80 + storm_boost*0.20
+# ---------------------------------------------------------------------------
+
+@dataclass
+class UnifiedSubScoreWeights:
+    """Feature weights for a single sub-score.
+
+    All weights within a sub-score must sum to 1.0.
+    Each feature key corresponds to a pctile_<key> value from
+    compute_weighted_demographics().
+    """
+    weights: Dict[str, float]
+
+    def sum(self) -> float:
+        return sum(self.weights.values())
+
+    def to_dict(self) -> Dict[str, float]:
+        return dict(self.weights)
+
+
+@dataclass
+class UnifiedCompositeWeights:
+    """Weights for combining the 4 sub-scores into base_score."""
+    roof_condition: float   # 0.35
+    market_quality: float   # 0.30
+    risk_exposure: float    # 0.20
+    canvass_efficiency: float  # 0.15
+
+    def sum(self) -> float:
+        return self.roof_condition + self.market_quality + self.risk_exposure + self.canvass_efficiency
+
+
+@dataclass
+class UnifiedModelVersion:
+    """Complete weight configuration for the unified RoofIQ scoring model v11.
+
+    Sub-scores
+    ----------
+    roof_condition     : How old/degraded the roof is likely to be.
+    market_quality     : How financially attractive/accessible the market is.
+    risk_exposure      : How exposed the area is to storm/environmental damage.
+    canvass_efficiency : How efficiently canvassers can work the area.
+
+    Storm boost
+    -----------
+    When an active storm event exists for a hex, the composite score blends
+    base_score (0.80) + storm_boost (0.20).  When no storm is active,
+    composite_score == base_score.
+    """
+    version: str
+    description: str
+    created_at: datetime
+
+    roof_condition_weights: UnifiedSubScoreWeights
+    market_quality_weights: UnifiedSubScoreWeights
+    risk_exposure_weights: UnifiedSubScoreWeights
+    canvass_efficiency_weights: UnifiedSubScoreWeights
+    composite_weights: UnifiedCompositeWeights
+
+    # Blend weights when storm is active
+    base_weight_with_storm: float    # 0.80
+    storm_boost_weight: float        # 0.20
+
+    def to_snapshot(self) -> Dict[str, Any]:
+        """Return a JSON-serializable dict for storage in score_weights_snapshot."""
+        return {
+            "version": self.version,
+            "description": self.description,
+            "created_at": self.created_at.isoformat(),
+            "lead_type": "unified",
+            "roof_condition_weights": self.roof_condition_weights.to_dict(),
+            "market_quality_weights": self.market_quality_weights.to_dict(),
+            "risk_exposure_weights": self.risk_exposure_weights.to_dict(),
+            "canvass_efficiency_weights": self.canvass_efficiency_weights.to_dict(),
+            "composite_weights": {
+                "roof_condition": self.composite_weights.roof_condition,
+                "market_quality": self.composite_weights.market_quality,
+                "risk_exposure": self.composite_weights.risk_exposure,
+                "canvass_efficiency": self.composite_weights.canvass_efficiency,
+            },
+            "base_weight_with_storm": self.base_weight_with_storm,
+            "storm_boost_weight": self.storm_boost_weight,
+        }
+
+
+UNIFIED_MODEL_VERSION = UnifiedModelVersion(
+    version="11.0.0",
+    description=(
+        "Unified roofing lead intelligence model with 4 base sub-scores "
+        "(roof_condition, market_quality, risk_exposure, canvass_efficiency) "
+        "plus optional storm boost. Replaces dual storm/roof_age engine design."
+    ),
+    created_at=datetime(2026, 2, 23, 0, 0, 0),
+
+    # roof_condition: How degraded/aged the roof is likely to be
+    # Feature weights sum to 1.0
+    roof_condition_weights=UnifiedSubScoreWeights(weights={
+        "roof_age":           0.35,
+        "climate_weathering": 0.20,
+        "pre1980_housing":    0.15,
+        "age_clustering":     0.10,
+        "canopy_risk":        0.10,
+        "svi_vulnerability":  0.10,
+    }),
+
+    # market_quality: Financial accessibility and investment attractiveness
+    # Feature weights sum to 1.0
+    market_quality_weights=UnifiedSubScoreWeights(weights={
+        "owner_occupied":     0.20,
+        "income":             0.18,
+        "home_value":         0.15,
+        "market_activity":    0.11,
+        "hpi_appreciation":   0.10,
+        "low_cost_burden":    0.10,
+        "low_vacancy":        0.08,
+        "single_family":      0.08,
+    }),
+
+    # risk_exposure: Environmental and structural damage vulnerability
+    # Feature weights sum to 1.0
+    risk_exposure_weights=UnifiedSubScoreWeights(weights={
+        "hail_exposure":      0.20,
+        "fema_risk":          0.20,
+        "verified_damage":    0.20,
+        "canopy_risk":        0.15,
+        "climate_weathering": 0.15,
+        "svi_vulnerability":  0.10,
+    }),
+
+    # canvass_efficiency: How productive a canvassing run will be
+    # Feature weights sum to 1.0
+    canvass_efficiency_weights=UnifiedSubScoreWeights(weights={
+        "density":            0.60,
+        "single_family":      0.25,
+        "market_activity":    0.15,
+    }),
+
+    # How the 4 sub-scores combine into base_score
+    composite_weights=UnifiedCompositeWeights(
+        roof_condition=0.35,
+        market_quality=0.30,
+        risk_exposure=0.20,
+        canvass_efficiency=0.15,
+    ),
+
+    # Storm blend: composite = base_score * 0.80 + storm_boost * 0.20
+    base_weight_with_storm=0.80,
+    storm_boost_weight=0.20,
 )

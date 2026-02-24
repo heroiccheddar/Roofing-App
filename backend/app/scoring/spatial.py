@@ -13,7 +13,7 @@ from typing import Any
 import h3
 from geoalchemy2 import WKTElement
 from geoalchemy2.shape import to_shape
-from shapely.geometry import Point, Polygon
+from shapely.geometry import MultiPolygon, Point, Polygon
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -38,6 +38,41 @@ def point_to_h3(lat: float, lon: float, resolution: int = 7) -> str:
         '8728308281fffff'
     """
     return h3.latlng_to_cell(lat, lon, resolution)
+
+
+def polygon_to_h3_cells(geom, resolution: int = 7) -> set[str]:
+    """Convert a Shapely Polygon or MultiPolygon to the set of H3 cells it covers.
+
+    Args:
+        geom: Shapely Polygon or MultiPolygon geometry
+        resolution: H3 resolution level (0-15), defaults to 7
+
+    Returns:
+        Set of H3 cell index strings that the geometry covers.
+        Falls back to the centroid cell if the polygon is smaller than a hex.
+    """
+    cells: set[str] = set()
+
+    polygons = geom.geoms if isinstance(geom, MultiPolygon) else [geom]
+
+    for poly in polygons:
+        if poly.is_empty:
+            continue
+        # h3.LatLngPoly expects (lat, lng) tuples; Shapely uses (lng, lat)
+        outer_ring = [(lat, lng) for lng, lat in poly.exterior.coords]
+        try:
+            poly_cells = h3.polygon_to_cells(h3.LatLngPoly(outer_ring), res=resolution)
+            cells.update(poly_cells)
+        except Exception:
+            pass
+
+    # Fallback: if polygon_to_cells returned nothing (tract smaller than a hex),
+    # use the centroid to guarantee at least one cell
+    if not cells:
+        centroid = geom.centroid
+        cells.add(h3.latlng_to_cell(centroid.y, centroid.x, resolution))
+
+    return cells
 
 
 def h3_to_boundary(h3_index: str) -> list[tuple[float, float]]:
@@ -426,7 +461,7 @@ def compute_weighted_demographics(tracts: list[CensusTract]) -> dict[str, Any]:
         "single_family", "low_vacancy", "low_cost_burden", "hpi_appreciation",
         "verified_damage", "climate_weathering", "fema_risk", "canopy_risk",
         "age_clustering", "pre1980_housing", "svi_vulnerability",
-        "market_activity",
+        "market_activity", "hail_exposure",
     ]
     pctile_out = {f"pctile_{k}": pctile_accum.get(k, 50.0) for k in _pctile_keys}
 

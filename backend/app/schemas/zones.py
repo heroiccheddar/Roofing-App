@@ -18,13 +18,19 @@ class ZoneListParams(BaseModel):
     hail_min: float | None = Field(
         None, ge=0, description="Minimum hail diameter filter (inches)"
     )
-    lead_type: str | None = Field(None, description="Filter by lead type: 'storm' or 'roof_age'")
+    lead_type: str | None = Field(
+        None,
+        description=(
+            "Filter by lead type. Current values: 'standard', 'storm_boosted'. "
+            "Legacy values 'storm' and 'roof_age' are accepted for backward compatibility."
+        ),
+    )
     sort_by: str = Field(
         default="score",
         description="Sort field: 'score', 'time', 'hail'",
     )
     page: int = Field(default=1, ge=1, description="Page number (1-indexed)")
-    page_size: int = Field(default=20, ge=1, le=100, description="Items per page")
+    page_size: int = Field(default=20, ge=1, le=500, description="Items per page")
 
     @field_validator("sort_by")
     @classmethod
@@ -54,6 +60,16 @@ class StormEventBrief(BaseModel):
     )
 
 
+class ScoreFactor(BaseModel):
+    """A single factor contributing to the zone's score."""
+
+    name: str = Field(..., description="Feature key (e.g., 'roof_age')")
+    label: str = Field(..., description="Human-readable label (e.g., 'Roof Age')")
+    percentile: float = Field(..., description="Area-weighted percentile rank (0-100)")
+    weight: float = Field(..., description="Feature weight in scoring model")
+    contribution: float = Field(..., description="Actual score contribution (pctile * weight)")
+
+
 class ZoneResponse(BaseModel):
     """Response schema for zone listing item."""
 
@@ -61,7 +77,13 @@ class ZoneResponse(BaseModel):
 
     id: UUID = Field(..., description="Zone ID")
     h3_index: str = Field(..., description="H3 hexagon index")
-    lead_type: str = Field(default="storm", description="Lead type: 'storm' or 'roof_age'")
+    lead_type: str = Field(
+        default="standard",
+        description=(
+            "Lead type: 'standard' or 'storm_boosted'. "
+            "Legacy values 'storm' and 'roof_age' may appear on older records."
+        ),
+    )
 
     # Scoring components
     composite_score: float = Field(..., description="Final composite score (0-100)")
@@ -71,6 +93,15 @@ class ZoneResponse(BaseModel):
     predicted_conversion_rate: float | None = Field(
         None, description="Predicted conversion rate"
     )
+
+    # Unified scoring sub-scores (v9+ model)
+    roof_condition: float | None = Field(None, description="Roof condition sub-score (0-100)")
+    market_quality: float | None = Field(None, description="Market quality sub-score (0-100)")
+    risk_exposure: float | None = Field(None, description="Risk exposure sub-score (0-100)")
+    canvass_efficiency: float | None = Field(None, description="Canvass efficiency sub-score (0-100)")
+    storm_boost: float | None = Field(None, description="Storm boost sub-score (0-100); null when no active storm")
+    base_score: float | None = Field(None, description="Composite score without storm boost (0-100)")
+    has_active_storm: bool = Field(False, description="Whether an active storm event is boosting this zone")
 
     # Score classification
     score_band: str = Field(
@@ -92,6 +123,9 @@ class ZoneResponse(BaseModel):
     # Geospatial
     centroid_lat: float = Field(..., description="Zone centroid latitude")
     centroid_lon: float = Field(..., description="Zone centroid longitude")
+
+    # Display
+    display_name: str | None = Field(None, description="Human-readable location (e.g., 'Plano, TX')")
 
     # Timestamps
     created_at: datetime = Field(..., description="Zone creation timestamp")
@@ -176,6 +210,7 @@ class ZoneDetailResponse(ZoneResponse):
     redfin_median_sale_price: float | None = Field(None, description="Redfin median sale price ($)")
     redfin_median_dom: float | None = Field(None, description="Redfin median days on market")
     redfin_price_drop_pct: float | None = Field(None, description="% of listings with price drops")
+    score_factors: list[ScoreFactor] = Field(default_factory=list, description="Top scoring factors ranked by contribution")
 
 
 class ZoneListResponse(BaseModel):
@@ -188,11 +223,11 @@ class ZoneListResponse(BaseModel):
 
 
 class GeoJSONGeometry(BaseModel):
-    """GeoJSON geometry object."""
+    """GeoJSON geometry object (supports Polygon and MultiPolygon)."""
 
-    type: str = Field(..., description="Geometry type (Polygon)")
-    coordinates: list[list[list[float]]] = Field(
-        ..., description="Polygon coordinates [[[lon, lat], ...]]"
+    type: str = Field(..., description="Geometry type (Polygon or MultiPolygon)")
+    coordinates: list = Field(
+        ..., description="Geometry coordinates (nesting depth varies by type)"
     )
 
 
@@ -213,4 +248,27 @@ class ZoneGeoJSONResponse(BaseModel):
     type: str = Field(default="FeatureCollection", description="GeoJSON type")
     features: list[ZoneGeoJSONFeature] = Field(
         default_factory=list, description="List of zone features"
+    )
+
+
+class TractProperties(BaseModel):
+    """Properties for a census tract GeoJSON feature."""
+
+    geoid: str = Field(..., description="Census FIPS GEOID")
+    canvass_priority: float = Field(..., description="Canvass priority score (0-100)")
+    owner_occupied_pct: float | None = Field(None, description="Owner-occupied housing %")
+    single_family_pct: float | None = Field(None, description="Single-family housing %")
+    pct_built_before_1980: float | None = Field(None, description="% homes built before 1980")
+    median_home_value: float | None = Field(None, description="Median home value ($)")
+    median_year_built: int | None = Field(None, description="Median year homes were built")
+    building_count: int | None = Field(None, description="Building footprint count")
+    dominant_decade: str | None = Field(None, description="Most common housing construction decade")
+
+
+class TractGeoJSONResponse(BaseModel):
+    """GeoJSON FeatureCollection for census tract overlays."""
+
+    type: str = Field(default="FeatureCollection", description="GeoJSON type")
+    features: list[ZoneGeoJSONFeature] = Field(
+        default_factory=list, description="List of tract features"
     )

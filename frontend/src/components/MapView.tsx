@@ -1,33 +1,51 @@
 import { useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import { useZonesGeoJSON } from '../hooks/useZones'
+import { useZonesGeoJSON, useZoneTracts } from '../hooks/useZones'
 import useAppStore from '../stores/appStore'
 
 // Mapbox token from env
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN || ''
 
-// Continuous color ramp expressions (interpolate on composite_score 0-100)
-// Roof age: cool blue → teal → green → amber → red
-const ROOF_AGE_COLOR_RAMP: mapboxgl.Expression = [
+// 21-stop color ramp matching panel scoreColor() palette (every 5 points)
+// Matches: grays(0-15) → blues(20-25) → purples(30-45) → teals(50-65)
+//          → yellows(70-80) → orange/red/rose/magenta(85-100)
+const SCORE_COLOR_RAMP: mapboxgl.Expression = [
   'interpolate', ['linear'],
   ['get', 'composite_score'],
-  20, '#93C5FD',   // Blue-300  (low)
-  35, '#5EEAD4',   // Teal-300
-  50, '#34D399',   // Emerald-400
-  65, '#FBBF24',   // Amber-400
-  80, '#EF4444',   // Red-500   (high)
+    0, '#64748b',   // slate-500
+    5, '#5b6270',   // gray-steel
+   10, '#475876',   // blue-gray
+   15, '#3b4f7a',   // steel-blue
+   20, '#1e40af',   // blue-800
+   25, '#4338ca',   // indigo-700
+   30, '#6d28d9',   // violet-700
+   35, '#7e22ce',   // purple-700
+   40, '#a21caf',   // fuchsia-700
+   45, '#9d174d',   // pink-800
+   50, '#0f766e',   // teal-700
+   55, '#0e7490',   // cyan-700
+   60, '#047857',   // emerald-700
+   65, '#15803d',   // green-700
+   70, '#4d7c0f',   // lime-700
+   75, '#a16207',   // yellow-700
+   80, '#b45309',   // amber-700
+   85, '#c2410c',   // orange-700
+   90, '#dc2626',   // red-600
+   95, '#be123c',   // rose-700
+  100, '#86198f',   // fuchsia-800
 ]
 
-// Storm: indigo → sky → amber → orange → red
-const STORM_COLOR_RAMP: mapboxgl.Expression = [
+// Priority color ramp: gray → blue → yellow → orange → red
+const PRIORITY_COLOR_RAMP: mapboxgl.Expression = [
   'interpolate', ['linear'],
-  ['get', 'composite_score'],
-  20, '#A5B4FC',   // Indigo-300 (low)
-  35, '#7DD3FC',   // Sky-300
-  50, '#FDE68A',   // Amber-200
-  65, '#FB923C',   // Orange-400
-  80, '#DC2626',   // Red-600    (high)
+  ['get', 'canvass_priority'],
+    0, '#94a3b8',   // gray
+   20, '#3b82f6',   // blue
+   40, '#06b6d4',   // cyan
+   60, '#eab308',   // yellow
+   80, '#f97316',   // orange
+  100, '#ef4444',   // red
 ]
 
 function MapView() {
@@ -36,11 +54,16 @@ function MapView() {
   const fittedRef = useRef(false)
   const [mapLoaded, setMapLoaded] = useState(false)
   const homeMarkerRef = useRef<mapboxgl.Marker | null>(null)
+  const tractPopupRef = useRef<mapboxgl.Popup | null>(null)
   const { data: geojson } = useZonesGeoJSON()
   const selectedZoneId = useAppStore((s) => s.selectedZoneId)
   const setSelectedZoneId = useAppStore((s) => s.setSelectedZoneId)
+  const setMapZoom = useAppStore((s) => s.setMapZoom)
+  const setMapBounds = useAppStore((s) => s.setMapBounds)
   const homeLat = useAppStore((s) => s.homeLat)
   const homeLon = useAppStore((s) => s.homeLon)
+  const routeGeometry = useAppStore((s) => s.routeGeometry)
+  const { data: tractsGeojson } = useZoneTracts(selectedZoneId)
 
   useEffect(() => {
     if (!mapContainer.current || mapRef.current) return
@@ -48,7 +71,7 @@ function MapView() {
     const map = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/light-v11',
-      center: [-98.5, 39.8], // Center of Tornado Alley
+      center: [-83.5, 32.8], // Center of Georgia
       zoom: 5,
     })
 
@@ -67,12 +90,7 @@ function MapView() {
         type: 'fill',
         source: 'zones',
         paint: {
-          'fill-color': [
-            'case',
-            ['==', ['get', 'lead_type'], 'roof_age'],
-            ROOF_AGE_COLOR_RAMP,
-            STORM_COLOR_RAMP,
-          ] as any,
+          'fill-color': SCORE_COLOR_RAMP as any,
           'fill-opacity': 0.55,
         },
       })
@@ -83,15 +101,33 @@ function MapView() {
         type: 'line',
         source: 'zones',
         paint: {
-          'line-color': [
-            'case',
-            ['==', ['get', 'lead_type'], 'roof_age'],
-            ROOF_AGE_COLOR_RAMP,
-            STORM_COLOR_RAMP,
-          ] as any,
+          'line-color': SCORE_COLOR_RAMP as any,
           'line-width': 2,
           'line-opacity': 0.8,
         },
+      })
+
+      // Score labels inside each hex tile (visible at zoom >= 9)
+      map.addLayer({
+        id: 'zones-labels',
+        type: 'symbol',
+        source: 'zones',
+        layout: {
+          'text-field': ['to-string', ['round', ['get', 'composite_score']]],
+          'text-size': [
+            'interpolate', ['linear'], ['zoom'],
+            9, 9,
+            12, 13,
+          ],
+          'text-allow-overlap': true,
+          'text-ignore-placement': true,
+        },
+        paint: {
+          'text-color': '#0f172a',
+          'text-halo-color': '#ffffff',
+          'text-halo-width': 1.5,
+        },
+        minzoom: 9,
       })
 
       // Highlight fill for selected zone
@@ -117,6 +153,119 @@ function MapView() {
         },
         filter: ['==', ['get', 'id'], ''],
       })
+
+      // Census tract overlay source + layers (visible at zoom >= 12)
+      map.addSource('tracts', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      })
+
+      map.addLayer({
+        id: 'tracts-fill',
+        type: 'fill',
+        source: 'tracts',
+        paint: {
+          'fill-color': PRIORITY_COLOR_RAMP as any,
+          'fill-opacity': 0.3,
+        },
+        minzoom: 12,
+      })
+
+      map.addLayer({
+        id: 'tracts-outline',
+        type: 'line',
+        source: 'tracts',
+        paint: {
+          'line-color': '#334155',
+          'line-width': 1,
+          'line-opacity': 0.6,
+        },
+        minzoom: 12,
+      })
+
+      map.addLayer({
+        id: 'tracts-labels',
+        type: 'symbol',
+        source: 'tracts',
+        layout: {
+          'text-field': ['concat', ['to-string', ['round', ['get', 'canvass_priority']]], '%'],
+          'text-size': 11,
+          'text-allow-overlap': false,
+        },
+        paint: {
+          'text-color': '#0f172a',
+          'text-halo-color': '#ffffff',
+          'text-halo-width': 1.5,
+        },
+        minzoom: 13,
+      })
+
+      // Route polyline source + layer
+      map.addSource('route', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      })
+
+      map.addLayer({
+        id: 'route-line',
+        type: 'line',
+        source: 'route',
+        paint: {
+          'line-color': '#2563eb',
+          'line-width': 4,
+          'line-dasharray': [2, 1],
+          'line-opacity': 0.8,
+        },
+      })
+
+      // Tract hover popup
+      map.on('mouseenter', 'tracts-fill', (e) => {
+        map.getCanvas().style.cursor = 'crosshair'
+        if (e.features && e.features.length > 0) {
+          const props = e.features[0].properties || {}
+          const html = `
+            <div style="font-size:12px;line-height:1.4">
+              <strong>Priority: ${props.canvass_priority}%</strong><br/>
+              Owner-Occupied: ${props.owner_occupied_pct != null ? props.owner_occupied_pct + '%' : 'N/A'}<br/>
+              Single Family: ${props.single_family_pct != null ? props.single_family_pct + '%' : 'N/A'}<br/>
+              Pre-1980: ${props.pct_built_before_1980 != null ? props.pct_built_before_1980 + '%' : 'N/A'}<br/>
+              Home Value: ${props.median_home_value != null ? '$' + Number(props.median_home_value).toLocaleString() : 'N/A'}<br/>
+              Era: ${props.dominant_decade || 'N/A'}
+            </div>
+          `
+          tractPopupRef.current = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, offset: 10 })
+            .setLngLat(e.lngLat)
+            .setHTML(html)
+            .addTo(map)
+        }
+      })
+      map.on('mousemove', 'tracts-fill', (e) => {
+        if (tractPopupRef.current) {
+          tractPopupRef.current.setLngLat(e.lngLat)
+        }
+      })
+      map.on('mouseleave', 'tracts-fill', () => {
+        map.getCanvas().style.cursor = ''
+        if (tractPopupRef.current) {
+          tractPopupRef.current.remove()
+          tractPopupRef.current = null
+        }
+      })
+
+      // Track zoom and viewport changes
+      const updateBounds = () => {
+        const b = map.getBounds()
+        if (!b) return
+        setMapBounds([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()])
+        setMapZoom(map.getZoom())
+      }
+      let boundsTimer: ReturnType<typeof setTimeout> | null = null
+      map.on('moveend', () => {
+        if (boundsTimer) clearTimeout(boundsTimer)
+        boundsTimer = setTimeout(updateBounds, 300)
+      })
+      // Set initial bounds
+      updateBounds()
 
       // Click handler for zones
       map.on('click', 'zones-fill', (e) => {
@@ -146,9 +295,9 @@ function MapView() {
       map.remove()
       mapRef.current = null
     }
-  }, [setSelectedZoneId])
+  }, [setSelectedZoneId, setMapZoom])
 
-  // Update GeoJSON data when it changes, fit bounds on first load
+  // Update GeoJSON data when it changes
   useEffect(() => {
     const map = mapRef.current
     if (!map || !mapLoaded || !geojson) return
@@ -157,26 +306,31 @@ function MapView() {
     if (source) {
       source.setData(geojson as any)
     }
+  }, [geojson, mapLoaded])
 
-    // Fit map to zone bounds on first data load
-    if (!fittedRef.current && geojson.features && geojson.features.length > 0) {
-      fittedRef.current = true
-      const bounds = new mapboxgl.LngLatBounds()
-      for (const feature of geojson.features) {
-        const coords = (feature.geometry as any).coordinates
-        if (!coords) continue
-        // Polygon: coords[0] is the outer ring
-        for (const ring of coords) {
-          for (const coord of Array.isArray(ring[0]) ? ring : [ring]) {
-            if (Array.isArray(coord) && coord.length >= 2) {
-              bounds.extend([coord[0], coord[1]] as [number, number])
-            }
+  // Fit bounds once on first load (removed expensive per-feature iteration)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoaded || fittedRef.current) return
+    if (!geojson?.features?.length) return
+
+    fittedRef.current = true
+    // Use first few features to approximate bounds
+    const bounds = new mapboxgl.LngLatBounds()
+    const sample = geojson.features.slice(0, 50)
+    for (const feature of sample) {
+      const coords = (feature.geometry as any).coordinates
+      if (!coords) continue
+      for (const ring of coords) {
+        for (const coord of Array.isArray(ring[0]) ? ring : [ring]) {
+          if (Array.isArray(coord) && coord.length >= 2) {
+            bounds.extend([coord[0], coord[1]] as [number, number])
           }
         }
       }
-      if (!bounds.isEmpty()) {
-        map.fitBounds(bounds, { padding: 80, maxZoom: 12 })
-      }
+    }
+    if (!bounds.isEmpty()) {
+      map.fitBounds(bounds, { padding: 80, maxZoom: 12 })
     }
   }, [geojson, mapLoaded])
 
@@ -215,6 +369,39 @@ function MapView() {
 
     map.flyTo({ center: [lon, lat], zoom: 11, duration: 1000 })
   }, [selectedZoneId, geojson])
+
+  // Update tract overlay when tracts data changes
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoaded) return
+
+    const source = map.getSource('tracts') as mapboxgl.GeoJSONSource | undefined
+    if (!source) return
+
+    if (tractsGeojson && selectedZoneId) {
+      source.setData(tractsGeojson as any)
+    } else {
+      source.setData({ type: 'FeatureCollection', features: [] })
+    }
+  }, [tractsGeojson, selectedZoneId, mapLoaded])
+
+  // Update route polyline when routeGeometry changes
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoaded) return
+    const source = map.getSource('route') as mapboxgl.GeoJSONSource | undefined
+    if (!source) return
+
+    if (routeGeometry) {
+      source.setData({
+        type: 'Feature',
+        geometry: routeGeometry,
+        properties: {},
+      } as any)
+    } else {
+      source.setData({ type: 'FeatureCollection', features: [] })
+    }
+  }, [routeGeometry, mapLoaded])
 
   // Show home marker
   useEffect(() => {

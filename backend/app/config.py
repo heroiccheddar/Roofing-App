@@ -33,8 +33,17 @@ class Settings(BaseSettings):
     # Census API (required for ingestion, optional for API-only startup)
     CENSUS_API_KEY: str = ""
 
+    # Mapbox Geocoding (optional — for zone display names)
+    MAPBOX_TOKEN: str = ""
+
+    # OpenRouteService (for driving route optimization)
+    OPENROUTESERVICE_API_KEY: str = ""
+
     # CORS
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
+
+    # Target states for weather monitoring and base scoring
+    TARGET_STATES: str = "GA"
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -46,6 +55,11 @@ class Settings(BaseSettings):
     def cors_origins_list(self) -> list[str]:
         """Parse CORS origins from comma-separated string."""
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
+
+    @property
+    def target_states_list(self) -> list[str]:
+        """Parse target states from comma-separated string."""
+        return [s.strip() for s in self.TARGET_STATES.split(",") if s.strip()]
 
 
 settings = Settings()

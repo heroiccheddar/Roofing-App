@@ -63,6 +63,7 @@ async def compute_and_store_percentiles(session: AsyncSession, state_fips: str) 
         ('pre1980_housing', 'pct_built_before_1980', False),
         ('svi_vulnerability', 'svi_overall', False),  # Higher SVI = more disaster-vulnerable
         ('market_activity', 'redfin_median_dom', True),  # Inverted: lower DOM = hotter market = better
+        ('hail_exposure', 'hail_exposure_score', False),
     ]
 
     print(f"Loading census tracts for state {state_fips}...")

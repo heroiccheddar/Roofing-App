@@ -28,8 +28,93 @@ from app.schemas.zones import (
     ZoneGeoJSONFeature,
     GeoJSONGeometry,
     StormEventBrief,
+    ScoreFactor,
+    TractGeoJSONResponse,
 )
 from app.scoring.decay import calculate_decay
+
+FEATURE_LABELS = {
+    "roof_age": "Roof Age",
+    "pre1980_housing": "Pre-1980 Housing",
+    "owner_occupied": "Owner Occupancy",
+    "home_value": "Home Value",
+    "income": "Household Income",
+    "low_cost_burden": "Low Cost Burden",
+    "density": "Housing Density",
+    "single_family": "Single Family",
+    "climate_weathering": "Climate Weathering",
+    "canopy_risk": "Tree Canopy Risk",
+    "fema_risk": "FEMA Disaster Risk",
+    "age_clustering": "Age Clustering",
+    "hpi_appreciation": "Home Price Growth",
+    "svi_vulnerability": "Social Vulnerability",
+    "market_activity": "Market Activity",
+    "low_vacancy": "Low Vacancy",
+    "hail_exposure": "Hail Exposure",
+    "verified_damage": "Verified Damage",
+}
+
+# Unified weights derived from the v9+ four-pillar model.
+# Formula: pillar_weight * feature_weight_within_pillar
+# Pillar weights: roof_condition=0.35, market_quality=0.30,
+#                risk_exposure=0.20, canvass_efficiency=0.15
+UNIFIED_WEIGHTS = {
+    "roof_age":          0.35 * 0.35,  # roof_condition pillar
+    "climate_weathering": 0.35 * 0.20 + 0.20 * 0.15,  # roof + risk pillars
+    "pre1980_housing":   0.35 * 0.15,  # roof_condition pillar
+    "age_clustering":    0.35 * 0.10,  # roof_condition pillar
+    "canopy_risk":       0.35 * 0.10 + 0.20 * 0.15,   # roof + risk pillars
+    "svi_vulnerability": 0.35 * 0.10 + 0.20 * 0.10,   # roof + risk pillars
+    "owner_occupied":    0.30 * 0.20,  # market_quality pillar
+    "home_value":        0.30 * 0.15,  # market_quality pillar
+    "income":            0.30 * 0.18,  # market_quality pillar
+    "single_family":     0.30 * 0.08 + 0.15 * 0.25,   # market + canvass pillars
+    "low_vacancy":       0.30 * 0.08,  # market_quality pillar
+    "low_cost_burden":   0.30 * 0.10,  # market_quality pillar
+    "hpi_appreciation":  0.30 * 0.10,  # market_quality pillar
+    "market_activity":   0.30 * 0.11 + 0.15 * 0.15,   # market + canvass pillars
+    "fema_risk":         0.20 * 0.20,  # risk_exposure pillar
+    "hail_exposure":     0.20 * 0.20,  # risk_exposure pillar
+    "verified_damage":   0.20 * 0.20,  # risk_exposure pillar
+    "density":           0.15 * 0.60,  # canvass_efficiency pillar
+}
+
+
+def compute_score_factors(
+    tracts: list[CensusTract], lead_type: str
+) -> list[ScoreFactor]:
+    """Compute ranked score factor breakdown from census tract percentile ranks.
+
+    Uses UNIFIED_WEIGHTS for all zones regardless of lead_type — the v9+ model
+    applies the same four-pillar formula to both standard and storm-boosted zones.
+    Storm boost is additive on top of base_score and is not reflected here.
+    """
+    total_area = sum(t.area_sq_km or 0 for t in tracts)
+    if total_area == 0:
+        return []
+
+    pctile_accum: dict[str, float] = {}
+    for tract in tracts:
+        if not tract.area_sq_km or not tract.percentile_ranks:
+            continue
+        w = tract.area_sq_km / total_area
+        for key, val in tract.percentile_ranks.items():
+            pctile_accum[key] = pctile_accum.get(key, 0.0) + val * w
+
+    factors = []
+    for feature, weight in UNIFIED_WEIGHTS.items():
+        pctile = pctile_accum.get(feature, 50.0)
+        contribution = pctile * weight
+        factors.append(ScoreFactor(
+            name=feature,
+            label=FEATURE_LABELS.get(feature, feature.replace("_", " ").title()),
+            percentile=round(pctile, 1),
+            weight=weight,
+            contribution=round(contribution, 1),
+        ))
+
+    factors.sort(key=lambda f: f.contribution, reverse=True)
+    return factors[:5]
 
 
 router = APIRouter(prefix="/zones", tags=["lead-zones"])
@@ -39,6 +124,7 @@ router = APIRouter(prefix="/zones", tags=["lead-zones"])
 async def get_zones_geojson(
     min_score: float | None = None,
     lead_type: str | None = None,
+    bbox: str | None = None,
     current_user: RooferAccount = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -46,25 +132,53 @@ async def get_zones_geojson(
 
     Args:
         min_score: Optional minimum composite score filter
+        lead_type: Optional filter. Accepts 'standard', 'storm_boosted',
+                   and legacy values 'storm' and 'roof_age'.
+        bbox: Optional viewport bounding box as 'west,south,east,north'
         current_user: Authenticated roofer account
         db: Database session
 
     Returns:
         GeoJSON FeatureCollection with zone polygons and properties
     """
-    # Build query for active zones in user's service area
-    stmt = select(LeadZone).where(
-        LeadZone.active == True,
-        func.ST_Intersects(LeadZone.boundary, current_user.service_area),
-    )
+    # Build query for active zones
+    stmt = select(LeadZone).where(LeadZone.active == True)
+
+    # Apply bbox viewport filter if provided, otherwise fall back to service area
+    if bbox:
+        try:
+            west, south, east, north = [float(x) for x in bbox.split(",")]
+            bbox_wkt = (
+                f"POLYGON(({west} {south},{east} {south},"
+                f"{east} {north},{west} {north},{west} {south}))"
+            )
+            from geoalchemy2 import WKTElement
+            bbox_geom = WKTElement(bbox_wkt, srid=4326)
+            stmt = stmt.where(func.ST_Intersects(LeadZone.boundary, bbox_geom))
+        except (ValueError, IndexError):
+            # Malformed bbox — fall back to service area
+            stmt = stmt.where(
+                func.ST_Intersects(LeadZone.boundary, current_user.service_area),
+            )
+    else:
+        stmt = stmt.where(
+            func.ST_Intersects(LeadZone.boundary, current_user.service_area),
+        )
 
     # Apply optional min_score filter
     if min_score is not None:
         stmt = stmt.where(LeadZone.composite_score >= min_score)
 
-    # Apply optional lead_type filter
-    if lead_type is not None:
+    # Apply optional lead_type filter with legacy value mapping
+    if lead_type == 'storm' or lead_type == 'storm_boosted':
+        stmt = stmt.where(LeadZone.has_active_storm == True)
+    elif lead_type == 'roof_age' or lead_type == 'standard':
+        stmt = stmt.where(LeadZone.has_active_storm == False)
+    elif lead_type is not None:
         stmt = stmt.where(LeadZone.lead_type == lead_type)
+
+    # Cap results to prevent OOM on wide viewports — return top zones by score
+    stmt = stmt.order_by(LeadZone.composite_score.desc()).limit(5000)
 
     # Execute query
     result = await db.execute(stmt)
@@ -93,6 +207,15 @@ async def get_zones_geojson(
                 "max_wind_speed": zone.max_wind_speed,
                 "event_count": zone.event_count,
                 "lead_type": zone.lead_type,
+                "display_name": zone.display_name,
+                # v9+ fields (guarded for migration safety)
+                "has_active_storm": getattr(zone, 'has_active_storm', False),
+                "storm_boost": getattr(zone, 'storm_boost', None),
+                "base_score": getattr(zone, 'base_score', None),
+                "roof_condition": getattr(zone, 'roof_condition', None),
+                "market_quality": getattr(zone, 'market_quality', None),
+                "risk_exposure": getattr(zone, 'risk_exposure', None),
+                "canvass_efficiency": getattr(zone, 'canvass_efficiency', None),
             },
         )
         features.append(feature)
@@ -112,7 +235,7 @@ async def list_zones(
     """List active lead zones with filtering and pagination.
 
     Args:
-        params: Query parameters (min_score, hail_min, sort_by, page, page_size)
+        params: Query parameters (min_score, hail_min, lead_type, sort_by, page, page_size)
         current_user: Authenticated roofer account
         db: Database session
 
@@ -132,7 +255,12 @@ async def list_zones(
     if params.hail_min is not None:
         stmt = stmt.where(LeadZone.max_hail_diameter >= params.hail_min)
 
-    if params.lead_type is not None:
+    # Map old lead_type filter values to the new has_active_storm column
+    if params.lead_type == 'storm' or params.lead_type == 'storm_boosted':
+        stmt = stmt.where(LeadZone.has_active_storm == True)
+    elif params.lead_type == 'roof_age' or params.lead_type == 'standard':
+        stmt = stmt.where(LeadZone.has_active_storm == False)
+    elif params.lead_type is not None:
         stmt = stmt.where(LeadZone.lead_type == params.lead_type)
 
     # Apply sorting
@@ -183,6 +311,7 @@ async def list_zones(
             expires_at=zone.expires_at,
             centroid_lat=centroid_lat,
             centroid_lon=centroid_lon,
+            display_name=zone.display_name,
             created_at=zone.created_at,
         )
         zone_responses.append(zone_response)
@@ -248,22 +377,23 @@ async def get_zone(
         zone.density_bonus * 0.20
     )
 
-    # Handle decay and hours_since for different lead types
-    if zone.primary_event_timestamp is None:
-        # roof_age zones have no storm events, no decay
+    # Handle decay and hours_since for storm-boosted vs standard zones
+    has_storm = getattr(zone, 'has_active_storm', False) or zone.lead_type == 'storm'
+    if zone.primary_event_timestamp is None or not has_storm:
+        # standard zones (no active storm) have no time decay
         decay_adjusted_score = zone.composite_score
         hours_since = 0.0
     else:
-        # storm zones have decay applied
+        # storm-boosted zones have decay applied
         decay_factor = calculate_decay(zone.primary_event_timestamp)
         decay_adjusted_score = max(0, min(raw_composite * decay_factor, 100))
         hours_since = (
             datetime.now(timezone.utc) - zone.primary_event_timestamp
         ).total_seconds() / 3600
 
-    # Fetch contributing events within zone boundary (skip for roof_age zones)
+    # Fetch contributing events within zone boundary only for storm-boosted zones
     event_briefs = []
-    if zone.lead_type == 'storm':
+    if has_storm or zone.lead_type in ('storm', 'storm_boosted'):
         events_stmt = select(StormEvent).where(
             StormEvent.scored == True,
             func.ST_Within(StormEvent.location, zone.boundary)
@@ -381,6 +511,14 @@ async def get_zone(
     nri_result = await db.execute(nri_stmt)
     nri_row = nri_result.one_or_none()
 
+    # Compute score factors from census tract percentile ranks using UNIFIED_WEIGHTS
+    factor_stmt = select(CensusTract).where(
+        func.ST_Intersects(CensusTract.geometry, zone.boundary),
+    )
+    factor_result = await db.execute(factor_stmt)
+    factor_tracts = list(factor_result.scalars().all())
+    score_factors = compute_score_factors(factor_tracts, zone.lead_type)
+
     # Build detail response
     return ZoneDetailResponse(
         id=zone.id,
@@ -400,6 +538,7 @@ async def get_zone(
         expires_at=zone.expires_at,
         centroid_lat=centroid_lat,
         centroid_lon=centroid_lon,
+        display_name=zone.display_name,
         created_at=zone.created_at,
         decay_adjusted_score=decay_adjusted_score,
         hours_since_storm=hours_since,
@@ -439,6 +578,7 @@ async def get_zone(
         redfin_median_sale_price=round(enriched.avg_redfin_sale_price, 0) if enriched and enriched.avg_redfin_sale_price else None,
         redfin_median_dom=round(enriched.avg_redfin_dom, 1) if enriched and enriched.avg_redfin_dom else None,
         redfin_price_drop_pct=round(enriched.avg_redfin_price_drops, 1) if enriched and enriched.avg_redfin_price_drops else None,
+        score_factors=score_factors,
     )
 
 
@@ -483,8 +623,9 @@ async def get_zone_events(
             detail="Zone is outside your service area"
         )
 
-    # Return empty list for roof_age zones (no storm events)
-    if zone.lead_type == 'roof_age':
+    # Return empty list for standard (non-storm) zones
+    has_storm = getattr(zone, 'has_active_storm', False) or zone.lead_type in ('storm', 'storm_boosted')
+    if not has_storm and zone.lead_type not in ('storm', 'storm_boosted'):
         return []
 
     # Fetch events within zone boundary
@@ -508,3 +649,90 @@ async def get_zone_events(
         )
         for event in events
     ]
+
+
+def compute_canvass_priority(tract: CensusTract) -> float:
+    """Compute canvass priority score (0-100) for a census tract.
+
+    Weighted formula:
+    - 30% owner_occupied_pct (homeowners authorize roof work)
+    - 25% pct_built_before_1980 (older roofs need replacement)
+    - 25% single_family_pct (individual roof decisions)
+    - 20% median_home_value normalized to 0-100 ($50k-$500k range)
+    """
+    owner = tract.owner_occupied_pct or 50.0
+    pre1980 = tract.pct_built_before_1980 or 50.0
+    sf = tract.single_family_pct or 50.0
+
+    # Normalize home value to 0-100 ($50k = 0, $500k = 100)
+    hv = tract.median_home_value or 200000
+    hv_norm = max(0, min(100, (hv - 50000) / (500000 - 50000) * 100))
+
+    priority = owner * 0.30 + pre1980 * 0.25 + sf * 0.25 + hv_norm * 0.20
+    return round(max(0, min(100, priority)), 1)
+
+
+@router.get("/{zone_id}/tracts", response_model=TractGeoJSONResponse)
+async def get_zone_tracts(
+    zone_id: UUID,
+    current_user: RooferAccount = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get census tracts intersecting a zone as GeoJSON with canvass priority.
+
+    Returns a FeatureCollection of tract polygons with demographic properties
+    and a computed canvass_priority score for street-level targeting.
+    """
+    # Verify zone exists
+    stmt = select(LeadZone).where(LeadZone.id == zone_id)
+    result = await db.execute(stmt)
+    zone = result.scalar_one_or_none()
+
+    if zone is None:
+        raise HTTPException(status_code=404, detail="Zone not found")
+
+    # Verify zone is within user's service area
+    intersects_stmt = select(
+        func.ST_Intersects(LeadZone.boundary, current_user.service_area)
+    ).where(LeadZone.id == zone_id)
+    intersects_result = await db.execute(intersects_stmt)
+    if not intersects_result.scalar_one():
+        raise HTTPException(status_code=403, detail="Zone is outside your service area")
+
+    # Get intersecting census tracts
+    tracts_stmt = select(CensusTract).where(
+        func.ST_Intersects(CensusTract.geometry, zone.boundary),
+    )
+    tracts_result = await db.execute(tracts_stmt)
+    tracts = tracts_result.scalars().all()
+
+    # Convert to GeoJSON features
+    features = []
+    for tract in tracts:
+        geom = mapping(to_shape(tract.geometry))
+        priority = compute_canvass_priority(tract)
+
+        feature = ZoneGeoJSONFeature(
+            type="Feature",
+            geometry=GeoJSONGeometry(
+                type=geom["type"],
+                coordinates=geom["coordinates"],
+            ),
+            properties={
+                "geoid": tract.geoid,
+                "canvass_priority": priority,
+                "owner_occupied_pct": round(tract.owner_occupied_pct, 1) if tract.owner_occupied_pct else None,
+                "single_family_pct": round(tract.single_family_pct, 1) if tract.single_family_pct else None,
+                "pct_built_before_1980": round(tract.pct_built_before_1980, 1) if tract.pct_built_before_1980 else None,
+                "median_home_value": tract.median_home_value,
+                "median_year_built": tract.median_year_built,
+                "building_count": tract.building_count,
+                "dominant_decade": tract.dominant_decade,
+            },
+        )
+        features.append(feature)
+
+    return TractGeoJSONResponse(
+        type="FeatureCollection",
+        features=features,
+    )

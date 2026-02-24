@@ -1,5 +1,5 @@
 /**
- * Typed API client for StormLeads backend.
+ * Typed API client for RoofIQ backend.
  *
  * Provides functions for all API endpoints with type-safe request/response handling.
  * Uses fetch API with automatic auth token injection and error handling.
@@ -17,15 +17,23 @@ import type {
   ZoneDetailResponse,
   StormEventBrief,
   ZoneGeoJSONResponse,
+  TractGeoJSONResponse,
   ZoneFeedbackCreate,
   ZoneFeedbackResponse,
   ZoneFeedbackListResponse,
+  CanvassSessionCreate,
+  CanvassSessionUpdate,
+  CanvassSessionResponse,
+  CanvassSessionListResponse,
   AlertHistoryResponse,
   CalibrationReport,
   WeightProposal,
   ModelDeployRequest,
   ModelDeployResponse,
   ErrorResponse,
+  RecommendationResponse,
+  RouteRequest,
+  RouteResponse,
 } from '../types/api';
 
 // ===== Configuration =====
@@ -33,7 +41,7 @@ import type {
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 // Token management — sessionStorage for persistence across HMR and page refresh
-const TOKEN_KEY = 'stormleads_token';
+const TOKEN_KEY = 'roofiq_token';
 
 let authToken: string | null = sessionStorage.getItem(TOKEN_KEY);
 
@@ -217,6 +225,12 @@ export async function getZonesGeoJSON(
   return apiFetch<ZoneGeoJSONResponse>('/api/v1/zones/geojson', { params });
 }
 
+export async function getZoneTracts(
+  zoneId: string
+): Promise<TractGeoJSONResponse> {
+  return apiFetch<TractGeoJSONResponse>(`/api/v1/zones/${zoneId}/tracts`);
+}
+
 // ===== Zone Feedback =====
 
 export async function submitFeedback(
@@ -231,6 +245,38 @@ export async function submitFeedback(
 
 export async function getFeedbackHistory(): Promise<ZoneFeedbackListResponse> {
   return apiFetch<ZoneFeedbackListResponse>('/api/v1/feedback/my-history');
+}
+
+// ===== Canvass Sessions =====
+
+export async function startCanvassSession(
+  zoneId: string,
+  data?: CanvassSessionCreate
+): Promise<CanvassSessionResponse> {
+  return apiFetch<CanvassSessionResponse>(`/api/v1/zones/${zoneId}/canvass`, {
+    method: 'POST',
+    body: JSON.stringify(data || {}),
+  });
+}
+
+export async function updateCanvassSession(
+  sessionId: string,
+  data: CanvassSessionUpdate
+): Promise<CanvassSessionResponse> {
+  return apiFetch<CanvassSessionResponse>(`/api/v1/canvass/${sessionId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getZoneCanvassHistory(
+  zoneId: string
+): Promise<CanvassSessionListResponse> {
+  return apiFetch<CanvassSessionListResponse>(`/api/v1/zones/${zoneId}/canvass`);
+}
+
+export async function getMyCanvassHistory(): Promise<CanvassSessionListResponse> {
+  return apiFetch<CanvassSessionListResponse>('/api/v1/canvass/my-history');
 }
 
 // ===== Alerts =====
@@ -255,6 +301,30 @@ export function connectAlertStream(): WebSocket {
   });
 
   return ws;
+}
+
+// ===== Recommendations =====
+
+export async function getRecommendations(
+  lat: number,
+  lon: number,
+  limit: number = 5,
+  stormOnly: boolean = false,
+): Promise<RecommendationResponse> {
+  return apiFetch<RecommendationResponse>('/api/v1/recommendations', {
+    params: { lat, lon, limit, storm_only: stormOnly },
+  })
+}
+
+// ===== Route Planning =====
+
+export async function planRoute(
+  request: RouteRequest,
+): Promise<RouteResponse> {
+  return apiFetch<RouteResponse>('/api/v1/route', {
+    method: 'POST',
+    body: JSON.stringify(request),
+  })
 }
 
 // ===== Internal Admin =====

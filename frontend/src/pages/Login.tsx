@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { login as apiLogin, register as apiRegister, setAuthToken } from '../api/client'
 import useAppStore from '../stores/appStore'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 
 function Login() {
   const [mode, setMode] = useState<'login' | 'register'>('login')
@@ -16,6 +17,7 @@ function Login() {
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
   const { setToken, setUser, setHome } = useAppStore()
+  const isMobile = useMediaQuery('(max-width: 767px)')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -53,9 +55,9 @@ function Login() {
 
   return (
     <div style={styles.container}>
-      <div style={styles.card}>
-        <h1 style={styles.title}>StormLeads</h1>
-        <p style={styles.subtitle}>Storm damage lead intelligence for roofers</p>
+      <div style={{ ...styles.card, padding: isMobile ? 20 : 32 }}>
+        <h1 style={styles.title}>RoofIQ</h1>
+        <p style={styles.subtitle}>Roofing lead intelligence for professionals</p>
         <div style={styles.tabs}>
           <button
             style={mode === 'login' ? styles.tabActive : styles.tab}
@@ -116,7 +118,7 @@ function Login() {
                   placeholder="(555) 123-4567"
                 />
               </div>
-              <div style={styles.fieldRow}>
+              <div style={{ ...styles.fieldRow, flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 0 : 12 }}>
                 <div style={styles.fieldHalf}>
                   <label style={styles.label}>Center Lat</label>
                   <input
@@ -170,7 +172,7 @@ function Login() {
 const styles: Record<string, React.CSSProperties> = {
   container: {
     display: 'flex', justifyContent: 'center', alignItems: 'center',
-    height: '100vh', background: '#f8fafc',
+    minHeight: '100dvh', background: '#f8fafc', padding: 16,
   },
   card: {
     width: '100%', maxWidth: 400, padding: 32,
@@ -198,7 +200,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   field: { marginBottom: 16 },
   fieldRow: { display: 'flex', gap: 12, marginBottom: 16 },
-  fieldHalf: { flex: 1 },
+  fieldHalf: { flex: 1, marginBottom: 16 },
   label: { display: 'block', marginBottom: 4, fontSize: 14, fontWeight: 500, color: '#374151' },
   input: {
     width: '100%', padding: '10px 12px', border: '1px solid #d1d5db',

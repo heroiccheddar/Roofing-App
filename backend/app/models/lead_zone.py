@@ -1,8 +1,9 @@
-"""Lead zone model representing scored geographic areas.
+"""Lead zone model representing scored geographic areas for roofing lead intelligence.
 
-Lead zones are H3 hexagons scored based on storm damage likelihood,
-demographic factors, and canvasser feedback. These are the primary
-output of the scoring engine.
+Lead zones are H3 hexagons scored based on roof condition, market quality,
+risk exposure, and canvassing efficiency. Storm activity may boost a zone's
+score when active weather events are present. These are the primary output
+of the scoring engine.
 """
 
 import uuid
@@ -16,6 +17,7 @@ from sqlalchemy import (
     Integer,
     Boolean,
     Index,
+    text,
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
@@ -40,14 +42,29 @@ class LeadZone(Base):
     # H3 identifier
     h3_index = Column(String, nullable=False)  # Primary H3 hex identifier
 
-    # Lead type: 'storm' (weather-driven) or 'roof_age' (census-driven)
-    lead_type = Column(String, nullable=False, default='storm', server_default='storm')
+    # Human-readable location label (e.g., "Plano, TX")
+    display_name = Column(String, nullable=True)
+
+    # Lead type: 'standard' (baseline) or 'storm_boosted' (active storm present)
+    # Backward compat: 'storm' and 'roof_age' are accepted for legacy records
+    lead_type = Column(String, nullable=False, default='standard', server_default='standard')
 
     # Scoring components
     composite_score = Column(Float, nullable=False)  # 0-100
     damage_prob = Column(Float, nullable=False)  # Sub-score
     lead_quality = Column(Float, nullable=False)  # Sub-score
     density_bonus = Column(Float, nullable=False)  # Sub-score
+
+    # Unified scoring sub-scores (v9+ model)
+    roof_condition = Column(Float, nullable=True)       # 0-100
+    market_quality = Column(Float, nullable=True)       # 0-100
+    risk_exposure = Column(Float, nullable=True)        # 0-100
+    canvass_efficiency = Column(Float, nullable=True)   # 0-100
+    storm_boost = Column(Float, nullable=True)          # 0-100, null if no storm
+    base_score = Column(Float, nullable=True)           # 0-100, composite without storm
+    has_active_storm = Column(Boolean, nullable=False, default=False, server_default='false')
+    base_scored_at = Column(DateTime(timezone=True), nullable=True)
+
     predicted_conversion_rate = Column(Float, nullable=True)  # Lookup from score band
 
     # Score band classification
@@ -84,6 +101,9 @@ class LeadZone(Base):
         nullable=False,
     )
 
+    # Zone staleness tracking — updated when canvass session or feedback is submitted
+    last_canvassed_at = Column(DateTime(timezone=True), nullable=True)
+
     # Relationships
     canvass_sessions = relationship(
         "CanvassSession", back_populates="lead_zone", lazy="select"
@@ -117,6 +137,17 @@ class LeadZone(Base):
         Index('ix_lead_zones_lead_type', 'lead_type'),
         # Composite index for lead_type + active + score queries
         Index('ix_lead_zones_type_active_score', 'lead_type', 'active', 'composite_score'),
+        # Partial unique index: only one active zone per H3 hex at a time
+        Index(
+            'ix_lead_zones_h3_active_unique',
+            'h3_index',
+            unique=True,
+            postgresql_where=text('active = true'),
+        ),
+        # Composite index on has_active_storm + active for storm-filtered queries
+        Index('ix_lead_zones_has_active_storm', 'has_active_storm', 'active'),
+        # Index on last_canvassed_at for freshness queries in recommendation engine
+        Index('ix_lead_zones_last_canvassed_at', 'last_canvassed_at'),
     )
 
     def __repr__(self):

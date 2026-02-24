@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment files (set via Fly.io secrets)
+.env
+.env.*
+
+# Testing
+tests/
+
+# Development
+.git/
+.gitignore
+.vscode/
+.idea/
+*.swp
+README.md
+
+# Scripts (not needed at runtime)
+scripts/
+
+# Large data files (handled via volume mount)
+data/
+*.tif
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build config
+pyproject.toml
+fly.toml
