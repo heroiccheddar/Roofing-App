@@ -162,7 +162,7 @@ export async function login(
 // ===== Account Management =====
 
 export async function getAccount(): Promise<AccountResponse> {
-  return apiFetch<AccountResponse>('/api/v1/account');
+  return apiFetch<AccountResponse>('/api/v1/account/profile');
 }
 
 export async function updateServiceArea(

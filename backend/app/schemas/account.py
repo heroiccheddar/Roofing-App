@@ -90,3 +90,5 @@ class AccountResponse(BaseModel):
     )
     is_admin: bool = Field(..., description="Admin flag")
     created_at: datetime = Field(..., description="Account creation timestamp")
+    service_area_lat: float | None = Field(None, description="Service area centroid latitude")
+    service_area_lon: float | None = Field(None, description="Service area centroid longitude")

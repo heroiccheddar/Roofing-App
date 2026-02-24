@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { login as apiLogin, register as apiRegister, setAuthToken } from '../api/client'
+import { login as apiLogin, register as apiRegister, setAuthToken, getAccount } from '../api/client'
 import useAppStore from '../stores/appStore'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 
@@ -40,11 +40,19 @@ function Login() {
       }
       setAuthToken(response.access_token)
       setToken(response.access_token)
-      setUser({ id: '', email, companyName })
-      // Set home location (use registration coords, or default Atlanta for login)
-      const homeLat = mode === 'register' ? parseFloat(lat) : 33.749
-      const homeLon = mode === 'register' ? parseFloat(lon) : -84.388
-      setHome(homeLat, homeLon)
+      // Fetch profile to get service area centroid for home location
+      try {
+        const profile = await getAccount()
+        setUser({ id: profile.id, email: profile.email, companyName: profile.company_name })
+        const homeLat = profile.service_area_lat ?? (mode === 'register' ? parseFloat(lat) : 33.749)
+        const homeLon = profile.service_area_lon ?? (mode === 'register' ? parseFloat(lon) : -84.388)
+        setHome(homeLat, homeLon)
+      } catch {
+        setUser({ id: '', email, companyName })
+        const homeLat = mode === 'register' ? parseFloat(lat) : 33.749
+        const homeLon = mode === 'register' ? parseFloat(lon) : -84.388
+        setHome(homeLat, homeLon)
+      }
       navigate('/')
     } catch (err) {
       setError(err instanceof Error ? err.message : `${mode === 'login' ? 'Login' : 'Registration'} failed`)

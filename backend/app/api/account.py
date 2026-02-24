@@ -4,6 +4,7 @@ Handles profile updates, service area configuration, and subscription management
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from geoalchemy2.shape import to_shape
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func
@@ -16,6 +17,21 @@ from app.schemas.account import (
     AlertPreferences,
     ServiceAreaUpdate,
 )
+
+
+def _account_response(user: RooferAccount) -> AccountResponse:
+    """Build AccountResponse with computed service area centroid."""
+    lat, lon = None, None
+    if user.service_area is not None:
+        try:
+            centroid = to_shape(user.service_area).centroid
+            lat, lon = centroid.y, centroid.x
+        except Exception:
+            pass
+    resp = AccountResponse.model_validate(user)
+    resp.service_area_lat = lat
+    resp.service_area_lon = lon
+    return resp
 
 router = APIRouter(prefix="/account", tags=["account"])
 
@@ -32,7 +48,7 @@ async def get_profile(
     Returns:
         AccountResponse: User account profile including preferences
     """
-    return AccountResponse.model_validate(current_user)
+    return _account_response(current_user)
 
 
 @router.put("/service-area", response_model=AccountResponse)
@@ -79,7 +95,7 @@ async def update_service_area(
         await db.commit()
         await db.refresh(current_user)
 
-        return AccountResponse.model_validate(current_user)
+        return _account_response(current_user)
 
     except Exception as e:
         await db.rollback()
@@ -118,7 +134,7 @@ async def update_alert_preferences(
         await db.commit()
         await db.refresh(current_user)
 
-        return AccountResponse.model_validate(current_user)
+        return _account_response(current_user)
 
     except Exception as e:
         await db.rollback()

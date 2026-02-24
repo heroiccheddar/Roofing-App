@@ -63,6 +63,8 @@ export interface AccountResponse {
   alert_preferences: Record<string, any>;
   is_admin: boolean;
   created_at: string;
+  service_area_lat: number | null;
+  service_area_lon: number | null;
 }
 
 // ===== Lead Zones =====
