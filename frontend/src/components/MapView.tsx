@@ -54,7 +54,6 @@ function MapView() {
   const fittedRef = useRef(false)
   const [mapLoaded, setMapLoaded] = useState(false)
   const homeMarkerRef = useRef<mapboxgl.Marker | null>(null)
-  const hasInitialZoom = useRef(false)
   const tractPopupRef = useRef<mapboxgl.Popup | null>(null)
   const { data: geojson } = useZonesGeoJSON()
   const selectedZoneId = useAppStore((s) => s.selectedZoneId)
@@ -70,11 +69,17 @@ function MapView() {
   useEffect(() => {
     if (!mapContainer.current || mapRef.current) return
 
+    // Start at home location if available, otherwise fall back to Georgia
+    const store = useAppStore.getState()
+    const initLat = store.homeLat ?? 32.8
+    const initLon = store.homeLon ?? -83.5
+    const initZoom = store.homeLat != null ? 8.5 : 5
+
     const map = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/light-v11',
-      center: [-83.5, 32.8], // Center of Georgia
-      zoom: 5,
+      center: [initLon, initLat],
+      zoom: initZoom,
     })
 
     map.addControl(new mapboxgl.NavigationControl(), 'top-right')
@@ -446,12 +451,6 @@ function MapView() {
       .addTo(map)
 
     homeMarkerRef.current = marker
-
-    // On first load, zoom to 60-mile radius around home
-    if (!hasInitialZoom.current) {
-      hasInitialZoom.current = true
-      map.flyTo({ center: [homeLon, homeLat], zoom: 8.5, duration: 1200 })
-    }
 
     return () => {
       marker.remove()
