@@ -113,8 +113,15 @@ async function apiFetch<T>(
   if (!response.ok) {
     let errorDetail = `HTTP ${response.status}: ${response.statusText}`;
     try {
-      const errorBody: ErrorResponse = await response.json();
-      errorDetail = errorBody.detail || errorDetail;
+      const errorBody = await response.json();
+      // FastAPI validation errors return detail as an array
+      if (typeof errorBody.detail === 'string') {
+        errorDetail = errorBody.detail;
+      } else if (Array.isArray(errorBody.detail)) {
+        errorDetail = errorBody.detail.map((e: any) => e.msg || String(e)).join('; ');
+      } else if (errorBody.detail) {
+        errorDetail = String(errorBody.detail);
+      }
     } catch {
       // Failed to parse error body, use default message
     }

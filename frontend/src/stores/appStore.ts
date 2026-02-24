@@ -57,8 +57,8 @@ const useAppStore = create<AppState>((set) => ({
   token: getAuthToken(),
   selectedZoneId: null,
   mapBounds: null,
-  homeLat: null,
-  homeLon: null,
+  homeLat: (() => { const v = sessionStorage.getItem('roofiq_home_lat'); return v ? parseFloat(v) : null })(),
+  homeLon: (() => { const v = sessionStorage.getItem('roofiq_home_lon'); return v ? parseFloat(v) : null })(),
   filters: {
     minScore: 50,
     maxDistanceKm: 200,
@@ -81,7 +81,11 @@ const useAppStore = create<AppState>((set) => ({
   setToken: (token) => set({ token }),
   setSelectedZoneId: (zoneId) => set({ selectedZoneId: zoneId }),
   setMapBounds: (bounds) => set({ mapBounds: bounds }),
-  setHome: (lat, lon) => set({ homeLat: lat, homeLon: lon }),
+  setHome: (lat, lon) => {
+    sessionStorage.setItem('roofiq_home_lat', String(lat))
+    sessionStorage.setItem('roofiq_home_lon', String(lon))
+    set({ homeLat: lat, homeLon: lon })
+  },
   setFilters: (newFilters) =>
     set((state) => ({
       filters: { ...state.filters, ...newFilters },
@@ -106,7 +110,9 @@ const useAppStore = create<AppState>((set) => ({
   setFocusedTractId: (geoid) => set({ focusedTractId: geoid }),
   logout: () => {
     clearAuthToken()
-    set({ user: null, token: null, selectedZoneId: null })
+    sessionStorage.removeItem('roofiq_home_lat')
+    sessionStorage.removeItem('roofiq_home_lon')
+    set({ user: null, token: null, selectedZoneId: null, homeLat: null, homeLon: null })
   },
 }))
 
