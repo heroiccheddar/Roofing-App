@@ -32,7 +32,14 @@ function RecommendationCard() {
   const [expanded, setExpanded] = useState(true)
   const [stormOnly, setStormOnly] = useState(false)
 
-  const { lat, lon, error: geoError, loading: geoLoading } = useGeolocation()
+  const { lat: geoLat, lon: geoLon, error: geoError, loading: geoLoading } = useGeolocation()
+  const homeLat = useAppStore((s) => s.homeLat)
+  const homeLon = useAppStore((s) => s.homeLon)
+
+  // Use geolocation if available, fall back to home location
+  const lat = geoLat ?? homeLat
+  const lon = geoLon ?? homeLon
+
   const { data, isLoading, error: queryError } = useRecommendations(lat, lon, 5, stormOnly)
 
   const setSelectedZoneId = useAppStore((s) => s.setSelectedZoneId)
@@ -119,15 +126,15 @@ function RecommendationCard() {
             </button>
           </div>
 
-          {/* Geolocation loading */}
-          {geoLoading && (
+          {/* Geolocation loading — only show if no home fallback */}
+          {geoLoading && lat === null && (
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '8px 0' }}>
               Getting your location...
             </p>
           )}
 
-          {/* Geolocation error */}
-          {geoError && !geoLoading && (
+          {/* Geolocation error — only show if no home fallback */}
+          {geoError && !geoLoading && lat === null && (
             <div
               style={{
                 padding: 10,
@@ -176,7 +183,7 @@ function RecommendationCard() {
                 fontSize: 13,
               }}
             >
-              Failed to load recommendations: {(queryError as Error).message}
+              Failed to load recommendations: {queryError instanceof Error ? queryError.message : String(queryError)}
             </div>
           )}
 
