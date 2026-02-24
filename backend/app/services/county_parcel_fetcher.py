@@ -113,6 +113,36 @@ def _classify_property_type(code: Optional[str]) -> Optional[str]:
     return code.lower()
 
 
+def _extract_centroid(geometry: Optional[dict]) -> tuple[Optional[float], Optional[float]]:
+    """Extract (lat, lon) from ArcGIS geometry (polygon centroid or point)."""
+    if not geometry:
+        return None, None
+    if "rings" in geometry:
+        coords = geometry["rings"][0]
+        if not coords:
+            return None, None
+        lon = sum(c[0] for c in coords) / len(coords)
+        lat = sum(c[1] for c in coords) / len(coords)
+        return lat, lon
+    if "x" in geometry:
+        return geometry.get("y"), geometry.get("x")
+    return None, None
+
+
+def _build_address(*parts: Optional[str | int]) -> Optional[str]:
+    """Join non-empty address parts into a single string."""
+    cleaned = [str(p).strip() for p in parts if p is not None and str(p).strip()]
+    return " ".join(cleaned) if cleaned else None
+
+
+def _strip_table_prefix(attrs: dict) -> dict:
+    """Strip 'TABLE.NAME.' prefix from ArcGIS joined-table field names.
+
+    e.g. 'SDEWH.ITS.P_TAX_MASTER.OWNER1' -> 'OWNER1'
+    """
+    return {k.rsplit(".", 1)[-1]: v for k, v in attrs.items()}
+
+
 # ---------------------------------------------------------------------------
 # Base adapter
 # ---------------------------------------------------------------------------
@@ -186,7 +216,10 @@ class BaseCountyAdapter(ABC):
 
 
 # ---------------------------------------------------------------------------
-# Gwinnett County — verified fields
+# Gwinnett County — verified fields from GC_Parcel/MapServer/6
+# Joined table: P_Parcels + P_TAX_MASTER
+# Available: PIN, address, owner, assessed/land/improvement values, acreage,
+#   zoning, property class. NOT available: year_built, sqft, bedrooms/baths.
 # ---------------------------------------------------------------------------
 class GwinnettCountyAdapter(BaseCountyAdapter):
     county_name = "Gwinnett"
@@ -197,58 +230,53 @@ class GwinnettCountyAdapter(BaseCountyAdapter):
     )
 
     def normalize(self, attrs: dict, geometry: Optional[dict]) -> PropertyRecord:
-        lat, lon = None, None
-        if geometry:
-            # Polygon centroid or point
-            if "rings" in geometry:
-                coords = geometry["rings"][0]
-                lon = sum(c[0] for c in coords) / len(coords)
-                lat = sum(c[1] for c in coords) / len(coords)
-            elif "x" in geometry:
-                lon, lat = geometry["x"], geometry["y"]
+        lat, lon = _extract_centroid(geometry)
+        # Gwinnett returns joined-table prefixed keys:
+        #   SDEWH.ITS.P_TAX_MASTER.OWNER1 -> strip to OWNER1
+        a = _strip_table_prefix(attrs)
 
-        addr_parts = [str(attrs.get("STRNUM") or ""), attrs.get("STRNAME") or ""]
-        address = " ".join(p for p in addr_parts if p).strip() or attrs.get("LOCADDR")
+        address = (
+            a.get("LOCADDR")
+            or _build_address(a.get("STRNUM"), a.get("STRNAME"))
+        )
 
         return PropertyRecord(
-            parcel_id=str(attrs.get("PIN") or attrs.get("TAXPIN") or ""),
+            parcel_id=str(a.get("PIN") or a.get("TAXPIN") or ""),
             source_county="gwinnett",
             county_fips=self.county_fips,
             address=address,
-            owner_name=attrs.get("OWNER1"),
-            assessed_value=_safe_float(attrs.get("TOTVAL1")),
-            land_value=_safe_float(attrs.get("LANDVAL1")),
-            improvement_value=_safe_float(attrs.get("DWLGVAL1")),
-            lot_size_acres=_safe_float(attrs.get("DEEDEDACREAGE") or attrs.get("CALCULATEDACREAGE")),
-            zoning=attrs.get("ZONING"),
-            land_use_code=attrs.get("PROPCLAS"),
-            property_type=_classify_property_type(attrs.get("PROPCLAS")),
+            owner_name=a.get("OWNER1"),
+            assessed_value=_safe_float(a.get("TOTVAL1")),
+            land_value=_safe_float(a.get("LANDVAL1")),
+            improvement_value=_safe_float(a.get("DWLGVAL1")),
+            lot_size_acres=_safe_float(
+                a.get("DEEDEDACREAGE") or a.get("CALCULATEDACREAGE")
+            ),
+            zoning=a.get("ZONING"),
+            land_use_code=a.get("PROPCLAS"),
+            property_type=_classify_property_type(a.get("PROPCLAS")),
             latitude=lat,
             longitude=lon,
-            raw_attributes=attrs,
+            raw_attributes=attrs,  # preserve original keys in raw
         )
 
 
 # ---------------------------------------------------------------------------
-# Fulton County — verified fields
+# Fulton County — verified fields from Tax_ParcelCurrentDigest
+# Available: parcel_id, address, owner, assessed/land/improvement values,
+#   appraisal values, land acres, LU code, class code, living units.
+# NOT available: year_built, sqft, bedrooms/baths, sale date/price.
 # ---------------------------------------------------------------------------
 class FultonCountyAdapter(BaseCountyAdapter):
     county_name = "Fulton"
     county_fips = "13121"
     base_url = (
         "https://gismaps.fultoncountyga.gov/arcgispub2/rest/services/"
-        "PropertyMapViewer/PropertyMapViewer/MapServer/11/query"
+        "Tax/Tax_ParcelCurrentDigest_GCS_WGS_1984/MapServer/0/query"
     )
 
     def normalize(self, attrs: dict, geometry: Optional[dict]) -> PropertyRecord:
-        lat, lon = None, None
-        if geometry:
-            if "rings" in geometry:
-                coords = geometry["rings"][0]
-                lon = sum(c[0] for c in coords) / len(coords)
-                lat = sum(c[1] for c in coords) / len(coords)
-            elif "x" in geometry:
-                lon, lat = geometry["x"], geometry["y"]
+        lat, lon = _extract_centroid(geometry)
 
         return PropertyRecord(
             parcel_id=str(attrs.get("ParcelID") or ""),
@@ -261,7 +289,9 @@ class FultonCountyAdapter(BaseCountyAdapter):
             improvement_value=_safe_float(attrs.get("ImprAssess")),
             lot_size_acres=_safe_float(attrs.get("LandAcres")),
             land_use_code=attrs.get("LUCode"),
-            property_type=_classify_property_type(attrs.get("LUCode") or attrs.get("ClassCode")),
+            property_type=_classify_property_type(
+                attrs.get("LUCode") or attrs.get("ClassCode")
+            ),
             latitude=lat,
             longitude=lon,
             raw_attributes=attrs,
@@ -269,49 +299,47 @@ class FultonCountyAdapter(BaseCountyAdapter):
 
 
 # ---------------------------------------------------------------------------
-# DeKalb County — partial field verification
+# DeKalb County — verified fields from dcgis Parcels/MapServer/0
+# Populated fields: PARCELID, SITEADDRESS, OWNERNME1, CNTASSDVAL,
+#   TOTAPR1, ACREAGE, CLASSCD/CLASSDSCRP, STATEDAREA, ZONING.
+# Schema has RESYRBLT/BLDGAREA/FLOORCOUNT but they are UNPOPULATED.
 # ---------------------------------------------------------------------------
 class DeKalbCountyAdapter(BaseCountyAdapter):
     county_name = "DeKalb"
     county_fips = "13089"
     base_url = (
-        "https://gis.dekalbcountyga.gov/arcgis/rest/services/"
+        "https://dcgis.dekalbcountyga.gov/hosted/rest/services/"
         "Parcels/MapServer/0/query"
     )
 
     def normalize(self, attrs: dict, geometry: Optional[dict]) -> PropertyRecord:
-        lat, lon = None, None
-        if geometry:
-            if "rings" in geometry:
-                coords = geometry["rings"][0]
-                lon = sum(c[0] for c in coords) / len(coords)
-                lat = sum(c[1] for c in coords) / len(coords)
-            elif "x" in geometry:
-                lon, lat = geometry["x"], geometry["y"]
+        lat, lon = _extract_centroid(geometry)
+
+        assessed = _safe_float(attrs.get("CNTASSDVAL"))
+        land_val = _safe_float(attrs.get("LNDVALUE"))
+        improvement = None
+        if assessed and land_val:
+            improvement = assessed - land_val if assessed > land_val else None
 
         return PropertyRecord(
-            parcel_id=str(
-                attrs.get("PARCELID") or attrs.get("PIN") or attrs.get("PARCEL_ID") or ""
-            ),
+            parcel_id=str(attrs.get("PARCELID") or ""),
             source_county="dekalb",
             county_fips=self.county_fips,
-            address=attrs.get("SITE_ADDR") or attrs.get("ADDRESS") or attrs.get("LOCATION"),
-            owner_name=attrs.get("OWNER") or attrs.get("OWNER_NAME") or attrs.get("OWNERNAME"),
-            year_built=_safe_int(attrs.get("YEAR_BUILT") or attrs.get("YEARBUILT")),
-            assessed_value=_safe_float(
-                attrs.get("CNTASSDVAL") or attrs.get("TOTAL_VALUE") or attrs.get("ASSESSED_VALUE")
+            address=attrs.get("SITEADDRESS"),
+            owner_name=attrs.get("OWNERNME1"),
+            year_built=_safe_int(attrs.get("RESYRBLT")),  # schema exists, rarely populated
+            assessed_value=assessed,
+            land_value=land_val,
+            improvement_value=improvement,
+            square_footage=_safe_int(
+                attrs.get("BLDGAREA") or attrs.get("RESFLRAREA")
             ),
-            land_value=_safe_float(attrs.get("LAND_VALUE") or attrs.get("LANDVALUE")),
-            improvement_value=_safe_float(
-                attrs.get("IMPROVEMENT_VALUE") or attrs.get("IMPRVALUE")
-            ),
-            square_footage=_safe_int(attrs.get("SQ_FT") or attrs.get("SQFT") or attrs.get("HEATED_SQFT")),
-            lot_size_acres=_safe_float(attrs.get("ACREAGE") or attrs.get("ACRES")),
+            lot_size_acres=_safe_float(attrs.get("ACREAGE")),
+            lot_size_sqft=_safe_float(attrs.get("STATEDAREA")),
             zoning=attrs.get("ZONING"),
-            land_use_code=attrs.get("LAND_USE") or attrs.get("LANDUSE"),
-            property_type=_classify_property_type(
-                attrs.get("LAND_USE") or attrs.get("LANDUSE")
-            ),
+            land_use_code=attrs.get("CLASSCD"),
+            property_type=_classify_property_type(attrs.get("CLASSCD")),
+            stories=_safe_int(attrs.get("FLOORCOUNT")),
             latitude=lat,
             longitude=lon,
             raw_attributes=attrs,
@@ -319,58 +347,37 @@ class DeKalbCountyAdapter(BaseCountyAdapter):
 
 
 # ---------------------------------------------------------------------------
-# Cobb County — open data portal (GeoJSON endpoint)
+# Cobb County — verified fields from tax/taxassessorsdaily/MapServer/0
+# Available: PIN, address, owner, assessed values (ASV_*), fair market
+#   values (FMV_*), acreage, lot sqft, property class.
+# NOT available: year_built, sqft, bedrooms/baths, sale date/price.
 # ---------------------------------------------------------------------------
 class CobbCountyAdapter(BaseCountyAdapter):
     county_name = "Cobb"
     county_fips = "13067"
-    # Cobb uses open data portal — try ArcGIS Hub feature layer
     base_url = (
-        "https://services1.arcgis.com/XBhYkoXKJCRHBEAu/arcgis/rest/services/"
-        "Cobb_County_Parcels/FeatureServer/0/query"
+        "https://gis.cobbcounty.gov/gisserver/rest/services/"
+        "tax/taxassessorsdaily/MapServer/0/query"
     )
 
     def normalize(self, attrs: dict, geometry: Optional[dict]) -> PropertyRecord:
-        lat, lon = None, None
-        if geometry:
-            if "rings" in geometry:
-                coords = geometry["rings"][0]
-                lon = sum(c[0] for c in coords) / len(coords)
-                lat = sum(c[1] for c in coords) / len(coords)
-            elif "x" in geometry:
-                lon, lat = geometry["x"], geometry["y"]
+        lat, lon = _extract_centroid(geometry)
 
         return PropertyRecord(
-            parcel_id=str(
-                attrs.get("PARCEL_ID") or attrs.get("PIN") or attrs.get("ParcelID") or ""
-            ),
+            parcel_id=str(attrs.get("PIN") or attrs.get("PARID") or ""),
             source_county="cobb",
             county_fips=self.county_fips,
-            address=(
-                attrs.get("SITE_ADDR") or attrs.get("ADDRESS") or attrs.get("LOCATION") or attrs.get("SiteAddress")
-            ),
-            owner_name=attrs.get("OWNER") or attrs.get("OWNER_NAME") or attrs.get("OwnerName"),
-            year_built=_safe_int(attrs.get("YEAR_BUILT") or attrs.get("YearBuilt")),
-            assessed_value=_safe_float(
-                attrs.get("TOTAL_APPRAISAL") or attrs.get("ASSESSED_VALUE") or attrs.get("TotalValue")
-            ),
-            land_value=_safe_float(attrs.get("LAND_APPRAISAL") or attrs.get("LandValue")),
+            address=attrs.get("SITUS_ADDR"),
+            owner_name=attrs.get("OWNER_NAM1"),
+            assessed_value=_safe_float(attrs.get("ASV_TOTAL")),
+            land_value=_safe_float(attrs.get("ASV_LAND") or attrs.get("FMV_LAND")),
             improvement_value=_safe_float(
-                attrs.get("IMPROVEMENT_APPRAISAL") or attrs.get("ImprovementValue")
+                attrs.get("ASV_BLDG") or attrs.get("FMV_BLDG")
             ),
-            square_footage=_safe_int(
-                attrs.get("TOTAL_SQ_FT") or attrs.get("HEATED_SQ_FT") or attrs.get("SqFt")
-            ),
-            lot_size_acres=_safe_float(attrs.get("ACREAGE") or attrs.get("ACRES") or attrs.get("Acres")),
-            zoning=attrs.get("ZONING") or attrs.get("Zoning"),
-            land_use_code=attrs.get("LAND_USE_CODE") or attrs.get("LandUse"),
-            property_type=_classify_property_type(
-                attrs.get("LAND_USE_CODE") or attrs.get("LandUse")
-            ),
-            bedrooms=_safe_int(attrs.get("BEDROOMS") or attrs.get("Bedrooms")),
-            bathrooms=_safe_float(attrs.get("BATHROOMS") or attrs.get("Bathrooms")),
-            last_sale_date=_parse_epoch_ms(attrs.get("SALE_DATE") or attrs.get("SaleDate")),
-            last_sale_price=_safe_float(attrs.get("SALE_PRICE") or attrs.get("SalePrice")),
+            lot_size_acres=_safe_float(attrs.get("ACRES") or attrs.get("ACRE_DEEDED")),
+            lot_size_sqft=_safe_float(attrs.get("LAND_SQFT")),
+            land_use_code=attrs.get("CLASS"),
+            property_type=_classify_property_type(attrs.get("CLASS")),
             latitude=lat,
             longitude=lon,
             raw_attributes=attrs,

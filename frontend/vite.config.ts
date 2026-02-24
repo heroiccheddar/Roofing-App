@@ -11,6 +11,8 @@ export default defineConfig({
       includeAssets: ['icon-192.png', 'icon-512.png'],
       manifest: false, // We use the existing manifest.json in public/
       workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/api\.mapbox\.com\/.*/i,
