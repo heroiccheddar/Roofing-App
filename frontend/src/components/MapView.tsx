@@ -54,6 +54,7 @@ function MapView() {
   const fittedRef = useRef(false)
   const [mapLoaded, setMapLoaded] = useState(false)
   const homeMarkerRef = useRef<mapboxgl.Marker | null>(null)
+  const hasInitialZoom = useRef(false)
   const tractPopupRef = useRef<mapboxgl.Popup | null>(null)
   const { data: geojson } = useZonesGeoJSON()
   const selectedZoneId = useAppStore((s) => s.selectedZoneId)
@@ -445,6 +446,12 @@ function MapView() {
       .addTo(map)
 
     homeMarkerRef.current = marker
+
+    // On first load, zoom to 60-mile radius around home
+    if (!hasInitialZoom.current) {
+      hasInitialZoom.current = true
+      map.flyTo({ center: [homeLon, homeLat], zoom: 8.5, duration: 1200 })
+    }
 
     return () => {
       marker.remove()
