@@ -13,14 +13,14 @@ primary_region = "dfw"
   max_machines_running = 1
 
   [[http_service.checks]]
-    grace_period = "60s"
+    grace_period = "120s"
     interval = "30s"
     method = "GET"
     timeout = "10s"
     path = "/health"
 
 [[vm]]
-  memory = "512mb"
+  memory = "1024mb"
   cpu_kind = "shared"
   cpus = 1
 
