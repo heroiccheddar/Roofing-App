@@ -193,6 +193,9 @@ async def get_zones_geojson(
         boundary_shape = to_shape(zone.boundary)
         geom = mapping(boundary_shape)
 
+        # Extract centroid for client-side distance filtering
+        centroid_shape = to_shape(zone.centroid)
+
         # Create feature with zone properties
         feature = ZoneGeoJSONFeature(
             type="Feature",
@@ -210,6 +213,8 @@ async def get_zones_geojson(
                 "event_count": zone.event_count,
                 "lead_type": zone.lead_type,
                 "display_name": zone.display_name,
+                "centroid_lat": centroid_shape.y,
+                "centroid_lon": centroid_shape.x,
                 # v9+ fields (guarded for migration safety)
                 "has_active_storm": getattr(zone, 'has_active_storm', False),
                 "storm_boost": getattr(zone, 'storm_boost', None),

@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { useZonesGeoJSON, useZoneTracts } from '../hooks/useZones'
 import useAppStore from '../stores/appStore'
+import { haversineKm } from '../utils/distance'
 
 // Mapbox token from env
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN || ''
@@ -62,9 +63,24 @@ function MapView() {
   const setMapBounds = useAppStore((s) => s.setMapBounds)
   const homeLat = useAppStore((s) => s.homeLat)
   const homeLon = useAppStore((s) => s.homeLon)
+  const maxDistanceMiles = useAppStore((s) => s.filters.maxDistanceMiles)
   const routeGeometry = useAppStore((s) => s.routeGeometry)
   const focusedTractId = useAppStore((s) => s.focusedTractId)
   const { data: tractsGeojson } = useZoneTracts(selectedZoneId)
+
+  // Filter GeoJSON features by max distance from home
+  const filteredGeojson = useMemo(() => {
+    if (!geojson) return null
+    if (homeLat == null || homeLon == null || maxDistanceMiles >= 200) return geojson
+    const maxKm = maxDistanceMiles * 1.60934
+    const filtered = geojson.features.filter((f: any) => {
+      const lat = f.properties?.centroid_lat
+      const lon = f.properties?.centroid_lon
+      if (lat == null || lon == null) return true
+      return haversineKm(homeLat, homeLon, lat, lon) <= maxKm
+    })
+    return { ...geojson, features: filtered }
+  }, [geojson, homeLat, homeLon, maxDistanceMiles])
 
   useEffect(() => {
     if (!mapContainer.current || mapRef.current) return
@@ -318,23 +334,23 @@ function MapView() {
     }
   }, [setSelectedZoneId, setMapZoom])
 
-  // Update GeoJSON data when it changes
+  // Update GeoJSON data when it changes (filtered by distance)
   useEffect(() => {
     const map = mapRef.current
-    if (!map || !mapLoaded || !geojson) return
+    if (!map || !mapLoaded || !filteredGeojson) return
 
     const source = map.getSource('zones') as mapboxgl.GeoJSONSource | undefined
     if (source) {
-      source.setData(geojson as any)
+      source.setData(filteredGeojson as any)
     }
-  }, [geojson, mapLoaded])
+  }, [filteredGeojson, mapLoaded])
 
   // Fit bounds once on first load — only when no home location is set
   // (if home is set, the map already initialized centered on it)
   useEffect(() => {
     const map = mapRef.current
     if (!map || !mapLoaded || fittedRef.current) return
-    if (!geojson?.features?.length) return
+    if (!filteredGeojson?.features?.length) return
 
     fittedRef.current = true
 
@@ -342,7 +358,7 @@ function MapView() {
     if (useAppStore.getState().homeLat != null) return
 
     const bounds = new mapboxgl.LngLatBounds()
-    const sample = geojson.features.slice(0, 50)
+    const sample = filteredGeojson.features.slice(0, 50)
     for (const feature of sample) {
       const coords = (feature.geometry as any).coordinates
       if (!coords) continue
@@ -357,7 +373,7 @@ function MapView() {
     if (!bounds.isEmpty()) {
       map.fitBounds(bounds, { padding: 80, maxZoom: 12 })
     }
-  }, [geojson, mapLoaded])
+  }, [filteredGeojson, mapLoaded])
 
   // Update highlight filter when selection changes
   useEffect(() => {

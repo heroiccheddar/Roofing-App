@@ -15,7 +15,7 @@ function ZonePanel({ isMobile = false }: { isMobile?: boolean }) {
   const selectedZoneId = useAppStore((s) => s.selectedZoneId)
   const setSelectedZoneId = useAppStore((s) => s.setSelectedZoneId)
   const minScore = useAppStore((s) => s.filters.minScore)
-  const maxDistanceKm = useAppStore((s) => s.filters.maxDistanceKm)
+  const maxDistanceMiles = useAppStore((s) => s.filters.maxDistanceMiles)
   const leadType = useAppStore((s) => s.filters.leadType)
   const setFilters = useAppStore((s) => s.setFilters)
   const homeLat = useAppStore((s) => s.homeLat)
@@ -30,6 +30,7 @@ function ZonePanel({ isMobile = false }: { isMobile?: boolean }) {
   const { data: detail } = useZoneDetail(selectedZoneId)
 
   // Compute distance for each zone + filter by maxDistance
+  const maxDistanceKm = maxDistanceMiles * 1.60934
   const zonesWithDistance = useMemo(() => {
     if (!zoneList?.zones) return []
     return zoneList.zones
@@ -536,13 +537,13 @@ function ZonePanel({ isMobile = false }: { isMobile?: boolean }) {
       </div>
       <div style={styles.filterRow}>
         <label style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-          Max Distance: {maxDistanceKm >= 200 ? 'Any' : `${maxDistanceKm} km (${(maxDistanceKm * 0.621371).toFixed(0)} mi)`}
+          Max Distance: {maxDistanceMiles >= 200 ? 'Any' : `${maxDistanceMiles} mi`}
         </label>
         <input
           type="range"
           min={5} max={200} step={5}
-          value={maxDistanceKm}
-          onChange={(e) => setFilters({ maxDistanceKm: Number(e.target.value) })}
+          value={maxDistanceMiles}
+          onChange={(e) => setFilters({ maxDistanceMiles: Number(e.target.value) })}
           style={{ width: '100%' }}
         />
       </div>

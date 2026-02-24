@@ -16,7 +16,7 @@ interface AppState {
   homeLon: number | null
   filters: {
     minScore: number
-    maxDistanceKm: number
+    maxDistanceMiles: number
     leadType: 'standard' | 'storm_boosted' | 'all'
     dateRange: [string, string] | null
   }
@@ -61,7 +61,7 @@ const useAppStore = create<AppState>((set) => ({
   homeLon: (() => { const v = sessionStorage.getItem('roofiq_home_lon'); return v ? parseFloat(v) : null })(),
   filters: {
     minScore: 50,
-    maxDistanceKm: 200,
+    maxDistanceMiles: 60,
     leadType: 'all',
     dateRange: null,
   },
