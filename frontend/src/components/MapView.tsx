@@ -49,6 +49,23 @@ const PRIORITY_COLOR_RAMP: mapboxgl.Expression = [
   100, '#ef4444',   // red
 ]
 
+/** Generate a GeoJSON polygon circle from center + radius in miles */
+function circleGeoJSON(lat: number, lon: number, radiusMiles: number, steps = 64) {
+  const km = radiusMiles * 1.60934
+  const coords: [number, number][] = []
+  for (let i = 0; i <= steps; i++) {
+    const angle = (i / steps) * 2 * Math.PI
+    const dLat = (km / 111.32) * Math.cos(angle)
+    const dLon = (km / (111.32 * Math.cos((lat * Math.PI) / 180))) * Math.sin(angle)
+    coords.push([lon + dLon, lat + dLat])
+  }
+  return {
+    type: 'Feature' as const,
+    geometry: { type: 'Polygon' as const, coordinates: [coords] },
+    properties: {},
+  }
+}
+
 function MapView() {
   const mapContainer = useRef<HTMLDivElement>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
@@ -322,6 +339,23 @@ function MapView() {
         map.getCanvas().style.cursor = ''
       })
 
+      // Distance radius circle overlay
+      map.addSource('radius-circle', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      })
+      map.addLayer({
+        id: 'radius-circle-line',
+        type: 'line',
+        source: 'radius-circle',
+        paint: {
+          'line-color': '#000000',
+          'line-width': 1.5,
+          'line-opacity': 0.5,
+          'line-dasharray': [4, 3],
+        },
+      })
+
       // Fit to 60-mile radius around home immediately on load
       if (store.homeLat != null && store.homeLon != null) {
         const radiusDeg = 60 / 69.0
@@ -502,6 +536,20 @@ function MapView() {
       marker.remove()
     }
   }, [homeLat, homeLon, mapLoaded])
+
+  // Update radius circle overlay
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoaded) return
+    const source = map.getSource('radius-circle') as mapboxgl.GeoJSONSource | undefined
+    if (!source) return
+
+    if (homeLat != null && homeLon != null && maxDistanceMiles < 200) {
+      source.setData(circleGeoJSON(homeLat, homeLon, maxDistanceMiles) as any)
+    } else {
+      source.setData({ type: 'FeatureCollection', features: [] })
+    }
+  }, [homeLat, homeLon, maxDistanceMiles, mapLoaded])
 
   return <div ref={mapContainer} style={{ width: '100%', height: '100%' }} />
 }
