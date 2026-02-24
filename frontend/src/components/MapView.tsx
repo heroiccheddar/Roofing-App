@@ -340,9 +340,13 @@ function MapView() {
       })
 
       // Distance radius circle overlay
+      const distMiles = useAppStore.getState().filters.maxDistanceMiles
+      const circleData = (store.homeLat != null && store.homeLon != null && distMiles < 200)
+        ? circleGeoJSON(store.homeLat, store.homeLon, distMiles)
+        : { type: 'FeatureCollection' as const, features: [] as any[] }
       map.addSource('radius-circle', {
         type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] },
+        data: circleData as any,
       })
       map.addLayer({
         id: 'radius-circle-line',
@@ -350,8 +354,8 @@ function MapView() {
         source: 'radius-circle',
         paint: {
           'line-color': '#000000',
-          'line-width': 1.5,
-          'line-opacity': 0.5,
+          'line-width': 2,
+          'line-opacity': 0.6,
           'line-dasharray': [4, 3],
         },
       })
