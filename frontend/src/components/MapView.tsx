@@ -89,13 +89,12 @@ function MapView() {
     const store = useAppStore.getState()
     const initLat = store.homeLat ?? 32.8
     const initLon = store.homeLon ?? -83.5
-    const initZoom = store.homeLat != null ? 8.5 : 5
 
     const map = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/light-v11',
       center: [initLon, initLat],
-      zoom: initZoom,
+      zoom: store.homeLat != null ? 8 : 5,
     })
 
     map.addControl(new mapboxgl.NavigationControl(), 'top-right')
@@ -374,6 +373,22 @@ function MapView() {
       map.fitBounds(bounds, { padding: 80, maxZoom: 12 })
     }
   }, [filteredGeojson, mapLoaded])
+
+  // Fit map to 60-mile radius around home on load and when home changes
+  const homeFittedRef = useRef(false)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoaded || homeLat == null || homeLon == null) return
+    const radiusDeg = 60 / 69.0
+    const lonSpread = radiusDeg / Math.cos((homeLat * Math.PI) / 180)
+    const animate = homeFittedRef.current // skip animation on first fit
+    homeFittedRef.current = true
+    map.fitBounds(
+      [[homeLon - lonSpread, homeLat - radiusDeg],
+       [homeLon + lonSpread, homeLat + radiusDeg]],
+      { padding: 20, duration: animate ? 1000 : 0 }
+    )
+  }, [homeLat, homeLon, mapLoaded])
 
   // Update highlight filter when selection changes
   useEffect(() => {
