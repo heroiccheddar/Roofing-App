@@ -125,6 +125,7 @@ async def get_zones_geojson(
     min_score: float | None = None,
     lead_type: str | None = None,
     bbox: str | None = None,
+    limit: int = Query(500, ge=1, le=5000, description="Max zones to return"),
     current_user: RooferAccount = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -135,6 +136,7 @@ async def get_zones_geojson(
         lead_type: Optional filter. Accepts 'standard', 'storm_boosted',
                    and legacy values 'storm' and 'roof_age'.
         bbox: Optional viewport bounding box as 'west,south,east,north'
+        limit: Max number of zones to return (default 500, max 5000)
         current_user: Authenticated roofer account
         db: Database session
 
@@ -177,8 +179,8 @@ async def get_zones_geojson(
     elif lead_type is not None:
         stmt = stmt.where(LeadZone.lead_type == lead_type)
 
-    # Cap results to prevent OOM on wide viewports — return top zones by score
-    stmt = stmt.order_by(LeadZone.composite_score.desc()).limit(5000)
+    # Cap results — return top zones by score
+    stmt = stmt.order_by(LeadZone.composite_score.desc()).limit(limit)
 
     # Execute query
     result = await db.execute(stmt)
