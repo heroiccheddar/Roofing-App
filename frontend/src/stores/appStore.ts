@@ -29,6 +29,7 @@ interface AppState {
   routeGeometry: any | null
   isOffline: boolean
   pendingQueueCount: number
+  focusedTractId: string | null
   setUser: (user: User | null) => void
   setToken: (token: string | null) => void
   setSelectedZoneId: (zoneId: string | null) => void
@@ -46,6 +47,7 @@ interface AppState {
   setPendingQueueCount: (count: number) => void
   toggleZoneInRoute: (zoneId: string) => void
   clearRoute: () => void
+  setFocusedTractId: (geoid: string | null) => void
   logout: () => void
 }
 
@@ -72,6 +74,7 @@ const useAppStore = create<AppState>((set) => ({
   routeGeometry: null,
   isOffline: typeof navigator !== 'undefined' ? !navigator.onLine : false,
   pendingQueueCount: 0,
+  focusedTractId: null,
 
   // Actions
   setUser: (user) => set({ user }),
@@ -100,6 +103,7 @@ const useAppStore = create<AppState>((set) => ({
       return { routeZoneIds: ids }
     }),
   clearRoute: () => set({ routeZoneIds: [], routeGeometry: null }),
+  setFocusedTractId: (geoid) => set({ focusedTractId: geoid }),
   logout: () => {
     clearAuthToken()
     set({ user: null, token: null, selectedZoneId: null })

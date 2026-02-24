@@ -29,8 +29,7 @@ tests/
 *.swp
 README.md
 
-# Scripts (not needed at runtime)
-scripts/
+# Scripts are included for one-off tasks via fly ssh console
 
 # Large data files (handled via volume mount)
 data/

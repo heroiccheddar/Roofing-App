@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Dashboard from './pages/Dashboard'
 import Login from './pages/Login'
+import ZoneDetail from './pages/ZoneDetail'
 import useAppStore from './stores/appStore'
 
 function App() {
@@ -15,6 +16,9 @@ function App() {
         } />
         <Route path="/" element={
           isAuthenticated ? <Dashboard /> : <Navigate to="/login" />
+        } />
+        <Route path="/zones/:id" element={
+          isAuthenticated ? <ZoneDetail /> : <Navigate to="/login" />
         } />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>

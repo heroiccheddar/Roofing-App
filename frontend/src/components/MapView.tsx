@@ -63,6 +63,7 @@ function MapView() {
   const homeLat = useAppStore((s) => s.homeLat)
   const homeLon = useAppStore((s) => s.homeLon)
   const routeGeometry = useAppStore((s) => s.routeGeometry)
+  const focusedTractId = useAppStore((s) => s.focusedTractId)
   const { data: tractsGeojson } = useZoneTracts(selectedZoneId)
 
   useEffect(() => {
@@ -180,6 +181,20 @@ function MapView() {
           'line-width': 1,
           'line-opacity': 0.6,
         },
+        minzoom: 12,
+      })
+
+      // Focused tract highlight (controlled by focusedTractId store)
+      map.addLayer({
+        id: 'tracts-focused',
+        type: 'line',
+        source: 'tracts',
+        paint: {
+          'line-color': '#2563eb',
+          'line-width': 3.5,
+          'line-opacity': 1,
+        },
+        filter: ['==', ['get', 'geoid'], ''],
         minzoom: 12,
       })
 
@@ -384,6 +399,13 @@ function MapView() {
       source.setData({ type: 'FeatureCollection', features: [] })
     }
   }, [tractsGeojson, selectedZoneId, mapLoaded])
+
+  // Highlight focused tract
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoaded) return
+    map.setFilter('tracts-focused', ['==', ['get', 'geoid'], focusedTractId || ''])
+  }, [focusedTractId, mapLoaded])
 
   // Update route polyline when routeGeometry changes
   useEffect(() => {

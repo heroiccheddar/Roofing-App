@@ -1,13 +1,17 @@
-import { useMemo, useState, useRef, useEffect } from 'react'
+import { useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import useAppStore from '../stores/appStore'
 import { useZoneList, useZoneDetail } from '../hooks/useZones'
 import FeedbackForm from './FeedbackForm'
 import CanvassTracker from './CanvassTracker'
 import { haversineKm, formatDistance } from '../utils/distance'
+import { scoreColor, ordinal } from '../utils/zoneFormatters'
+import { InfoTip, Stat, ExposureBar, SubScoreBar, RiskBadge } from './ZoneDetailHelpers'
 import { ZoneListSkeleton } from './SkeletonLoader'
 import ErrorBoundary from './ErrorBoundary'
 
 function ZonePanel({ isMobile = false }: { isMobile?: boolean }) {
+  const navigate = useNavigate()
   const selectedZoneId = useAppStore((s) => s.selectedZoneId)
   const setSelectedZoneId = useAppStore((s) => s.setSelectedZoneId)
   const minScore = useAppStore((s) => s.filters.minScore)
@@ -162,6 +166,19 @@ function ZonePanel({ isMobile = false }: { isMobile?: boolean }) {
             </>
           )}
         </div>
+
+        <button
+          onClick={() => navigate(`/zones/${selectedZoneId}`)}
+          style={{
+            display: 'block', width: '100%',
+            padding: '10px 12px', marginBottom: 12,
+            background: 'var(--accent-blue)', color: '#fff',
+            border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600,
+            cursor: 'pointer', textAlign: 'center',
+          }}
+        >
+          View Full Details & Neighborhood Breakdown
+        </button>
 
         {/* ===== 2. Roof Condition ===== */}
         <div style={styles.sectionCard}>
@@ -671,201 +688,6 @@ function ZonePanel({ isMobile = false }: { isMobile?: boolean }) {
       </div>
     </div>
   )
-}
-
-/** Format a number as an ordinal (1st, 2nd, 3rd, etc.) */
-function ordinal(n: number): string {
-  const r = Math.round(n)
-  const s = ['th', 'st', 'nd', 'rd']
-  const v = r % 100
-  return r + (s[(v - 20) % 10] || s[v] || s[0])
-}
-
-// Helper components
-function InfoTip({ text }: { text: string }) {
-  const [show, setShow] = useState(false)
-  const tipRef = useRef<HTMLDivElement>(null)
-
-  // Reposition if overflowing viewport
-  useEffect(() => {
-    if (show && tipRef.current) {
-      const rect = tipRef.current.getBoundingClientRect()
-      if (rect.right > window.innerWidth - 8) {
-        tipRef.current.style.left = 'auto'
-        tipRef.current.style.right = '0px'
-      }
-      if (rect.left < 8) {
-        tipRef.current.style.left = '0px'
-        tipRef.current.style.right = 'auto'
-      }
-    }
-  }, [show])
-
-  return (
-    <span
-      style={{ position: 'relative', display: 'inline-flex', marginLeft: 4, cursor: 'help' }}
-      onMouseEnter={() => setShow(true)}
-      onMouseLeave={() => setShow(false)}
-    >
-      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ opacity: 0.45 }}>
-        <circle cx="8" cy="8" r="7" stroke="#64748b" strokeWidth="1.5" />
-        <text x="8" y="12" textAnchor="middle" fontSize="10" fontWeight="700" fill="#64748b">i</text>
-      </svg>
-      {show && (
-        <div
-          ref={tipRef}
-          style={{
-            position: 'absolute', bottom: 18, left: -8,
-            background: '#1e293b', color: '#f1f5f9', fontSize: 11, lineHeight: '15px',
-            padding: '6px 10px', borderRadius: 6, whiteSpace: 'normal',
-            width: 200, maxWidth: 'calc(100vw - 32px)', zIndex: 100, boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            pointerEvents: 'none',
-          }}
-        >
-          {text}
-        </div>
-      )}
-    </span>
-  )
-}
-
-function Stat({ label, value, info }: { label: string; value: string; info?: string }) {
-  return (
-    <div style={{ padding: 8 }}>
-      <div style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', display: 'flex', alignItems: 'center' }}>
-        {label}
-        {info && <InfoTip text={info} />}
-      </div>
-      <div style={{ fontSize: 18, fontWeight: 600, color: '#0f172a' }}>{value}</div>
-    </div>
-  )
-}
-
-function ExposureBar({ score }: { score: number }) {
-  const color = score > 60 ? '#dc2626' : score > 30 ? '#ca8a04' : '#16a34a'
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-      <div style={{ flex: 1, height: 8, background: '#e2e8f0', borderRadius: 4, overflow: 'hidden' }}>
-        <div style={{ width: `${Math.min(score, 100)}%`, height: '100%', background: color, borderRadius: 4 }} />
-      </div>
-      <span style={{ fontSize: 14, fontWeight: 600, color, minWidth: 32 }}>{score.toFixed(0)}</span>
-    </div>
-  )
-}
-
-const SubScoreBar = ({ label, value, color }: { label: string; value?: number; color: string }) => {
-  if (value == null) return null
-  return (
-    <div style={{ marginBottom: 8 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-        <span>{label}</span>
-        <span style={{ fontWeight: 600 }}>{value.toFixed(0)}</span>
-      </div>
-      <div style={{ height: 6, background: '#e0e0e0', borderRadius: 3 }}>
-        <div style={{ height: '100%', width: `${Math.min(value, 100)}%`, background: color, borderRadius: 3 }} />
-      </div>
-    </div>
-  )
-}
-
-function RiskBadge({ label, rating, info }: { label: string; rating: string; info?: string }) {
-  const NRI_BG: Record<string, string> = {
-    'Very High': '#fef2f2',
-    'Relatively High': '#fff7ed',
-    'Relatively Moderate': '#fefce8',
-    'Relatively Low': '#f0fdf4',
-    'Very Low': '#f0f9ff',
-  }
-  const NRI_COLOR: Record<string, string> = {
-    'Very High': '#dc2626',
-    'Relatively High': '#ea580c',
-    'Relatively Moderate': '#ca8a04',
-    'Relatively Low': '#16a34a',
-    'Very Low': '#2563eb',
-  }
-  return (
-    <span style={{
-      fontSize: 12, padding: '4px 8px', borderRadius: 6,
-      background: NRI_BG[rating] || '#f1f5f9',
-      color: NRI_COLOR[rating] || '#64748b',
-      fontWeight: 600, display: 'inline-flex', alignItems: 'center',
-    }}>
-      {label}: {rating}
-      {info && <InfoTip text={info} />}
-    </span>
-  )
-}
-
-
-/** Return background + text color for a composite score (0-100).
- *
- * 21 color stops (every 5 points) with distinct color families.
- * Extra differentiation in the 80-100 range where lead quality matters most.
- *
- *   0-15  → grays / steel        (skip band)
- *  20-25  → blue / indigo        (cool low-end)
- *  30-45  → violet / purple      (cool band)
- *  50-65  → teal / emerald       (warm band)
- *  70-80  → lime / yellow / amber (hot low-end)
- *  85-100 → orange → red → crimson → magenta (hot high-end)
- */
-function scoreColor(score: number): { bg: string; fg: string } {
-  const s = Math.max(0, Math.min(100, score))
-
-  // Color stops: [score, bgHex, fgHex]
-  const stops: [number, string, string][] = [
-    [  0, '#f1f5f9', '#64748b'],  // slate-100/500
-    [  5, '#f0f1f3', '#5b6270'],  // gray-steel
-    [ 10, '#e8edf4', '#475876'],  // blue-gray
-    [ 15, '#e2e8f0', '#3b4f7a'],  // steel-blue
-    [ 20, '#dbeafe', '#1e40af'],  // blue-100/800
-    [ 25, '#e0e7ff', '#4338ca'],  // indigo-100/700
-    [ 30, '#ede9fe', '#6d28d9'],  // violet-100/700
-    [ 35, '#f3e8ff', '#7e22ce'],  // purple-100/700
-    [ 40, '#fae8ff', '#a21caf'],  // fuchsia-100/700
-    [ 45, '#fce7f3', '#9d174d'],  // pink-100/800
-    [ 50, '#ccfbf1', '#0f766e'],  // teal-100/700
-    [ 55, '#cffafe', '#0e7490'],  // cyan-100/700
-    [ 60, '#d1fae5', '#047857'],  // emerald-100/700
-    [ 65, '#dcfce7', '#15803d'],  // green-100/700
-    [ 70, '#ecfccb', '#4d7c0f'],  // lime-100/700
-    [ 75, '#fef9c3', '#a16207'],  // yellow-100/700
-    [ 80, '#fef3c7', '#b45309'],  // amber-100/700
-    [ 85, '#ffedd5', '#c2410c'],  // orange-100/700
-    [ 90, '#fee2e2', '#dc2626'],  // red-100/600
-    [ 95, '#ffe4e6', '#be123c'],  // rose-100/700
-    [100, '#fae8ff', '#86198f'],  // fuchsia-100/800
-  ]
-
-  // Find the two stops we're between
-  let lo = stops[0], hi = stops[stops.length - 1]
-  for (let i = 0; i < stops.length - 1; i++) {
-    if (s >= stops[i][0] && s <= stops[i + 1][0]) {
-      lo = stops[i]
-      hi = stops[i + 1]
-      break
-    }
-  }
-
-  const t = hi[0] === lo[0] ? 0 : (s - lo[0]) / (hi[0] - lo[0])
-  return {
-    bg: lerpColor(lo[1], hi[1], t),
-    fg: lerpColor(lo[2], hi[2], t),
-  }
-}
-
-/** Linearly interpolate between two hex colors. */
-function lerpColor(a: string, b: string, t: number): string {
-  const parse = (hex: string) => [
-    parseInt(hex.slice(1, 3), 16),
-    parseInt(hex.slice(3, 5), 16),
-    parseInt(hex.slice(5, 7), 16),
-  ]
-  const ca = parse(a), cb = parse(b)
-  const r = Math.round(ca[0] + (cb[0] - ca[0]) * t)
-  const g = Math.round(ca[1] + (cb[1] - ca[1]) * t)
-  const bl = Math.round(ca[2] + (cb[2] - ca[2]) * t)
-  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${bl.toString(16).padStart(2, '0')}`
 }
 
 const styles: Record<string, React.CSSProperties> = {
