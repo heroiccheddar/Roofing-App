@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { getZones, getZone, getZonesGeoJSON, getZoneTracts } from '../api/client'
+import { getZones, getZone, getZonesGeoJSON, getZoneTracts, getTractProperties } from '../api/client'
 import type { ZoneListParams } from '../types/api'
 import useAppStore from '../stores/appStore'
 
@@ -44,6 +44,15 @@ export function useZoneTracts(zoneId: string | null) {
     queryFn: () => getZoneTracts(zoneId!),
     enabled: !!zoneId,
     staleTime: 60_000,
+  })
+}
+
+export function useTractProperties(zoneId: string | null, tractGeoid: string | null, sortBy?: string) {
+  return useQuery({
+    queryKey: ['tract-properties', zoneId, tractGeoid, sortBy],
+    queryFn: () => getTractProperties(zoneId!, tractGeoid!, { sort_by: sortBy, page_size: 200 }),
+    enabled: !!zoneId && !!tractGeoid,
+    staleTime: 120_000,
   })
 }
 

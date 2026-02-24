@@ -324,7 +324,7 @@ function MapView() {
 
       // Fit to 60-mile radius around home immediately on load
       if (store.homeLat != null && store.homeLon != null) {
-        const radiusDeg = 60 / 69.0
+        const radiusDeg = 75 / 69.0
         const lonSpread = radiusDeg / Math.cos((store.homeLat * Math.PI) / 180)
         map.fitBounds(
           [[store.homeLon - lonSpread, store.homeLat - radiusDeg],
@@ -390,7 +390,7 @@ function MapView() {
   useEffect(() => {
     const map = mapRef.current
     if (!map || !mapLoaded || homeLat == null || homeLon == null) return
-    const radiusDeg = 60 / 69.0
+    const radiusDeg = 75 / 69.0
     const lonSpread = radiusDeg / Math.cos((homeLat * Math.PI) / 180)
     const animate = homeFittedRef.current // skip animation on first fit
     homeFittedRef.current = true

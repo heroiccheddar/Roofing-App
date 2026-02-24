@@ -387,3 +387,39 @@ export interface ModelDeployResponse {
   deployed_at: string;
   weights: Record<string, number>;
 }
+
+// ===== Properties (Parcel Data) =====
+
+export interface PropertyResponse {
+  id: string;
+  parcel_id: string;
+  address?: string;
+  owner_name?: string;
+  year_built?: number;
+  estimated_roof_age?: number;
+  assessed_value?: number;
+  land_value?: number;
+  improvement_value?: number;
+  square_footage?: number;
+  lot_size_acres?: number;
+  property_type?: string;
+  zoning?: string;
+  bedrooms?: number;
+  bathrooms?: number;
+  stories?: number;
+  last_sale_date?: string;
+  last_sale_price?: number;
+  latitude?: number;
+  longitude?: number;
+}
+
+export interface PropertyListResponse {
+  properties: PropertyResponse[];
+  total: number;
+  page: number;
+  page_size: number;
+  tract_geoid: string;
+  source_county?: string;
+  data_freshness?: string;
+  has_county_adapter: boolean;
+}

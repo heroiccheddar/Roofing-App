@@ -61,7 +61,7 @@ const useAppStore = create<AppState>((set) => ({
   homeLon: (() => { const v = sessionStorage.getItem('roofiq_home_lon'); return v ? parseFloat(v) : null })(),
   filters: {
     minScore: 50,
-    maxDistanceMiles: 60,
+    maxDistanceMiles: 75,
     leadType: 'all',
     dateRange: null,
   },

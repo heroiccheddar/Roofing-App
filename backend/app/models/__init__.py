@@ -12,6 +12,7 @@ from app.models.model_calibration import ModelCalibration
 from app.models.roofer_account import RooferAccount
 from app.models.alert_log import AlertLog
 from app.models.zone_feedback import ZoneFeedback
+from app.models.property import Property
 
 __all__ = [
     "StormEvent",
@@ -22,4 +23,5 @@ __all__ = [
     "RooferAccount",
     "AlertLog",
     "ZoneFeedback",
+    "Property",
 ]

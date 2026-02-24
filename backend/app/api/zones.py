@@ -728,6 +728,7 @@ async def get_zone_tracts(
             properties={
                 "geoid": tract.geoid,
                 "canvass_priority": priority,
+                # Housing stock
                 "owner_occupied_pct": round(tract.owner_occupied_pct, 1) if tract.owner_occupied_pct else None,
                 "single_family_pct": round(tract.single_family_pct, 1) if tract.single_family_pct else None,
                 "pct_built_before_1980": round(tract.pct_built_before_1980, 1) if tract.pct_built_before_1980 else None,
@@ -735,6 +736,36 @@ async def get_zone_tracts(
                 "median_year_built": tract.median_year_built,
                 "building_count": tract.building_count,
                 "dominant_decade": tract.dominant_decade,
+                "dominant_decade_pct": round(tract.dominant_decade_pct, 1) if tract.dominant_decade_pct else None,
+                "age_clustering_score": round(tract.age_clustering_score, 1) if tract.age_clustering_score else None,
+                "avg_building_area_sqm": round(tract.avg_building_area_sqm, 0) if tract.avg_building_area_sqm else None,
+                # Demographics & market
+                "population": tract.population,
+                "housing_units": tract.housing_units,
+                "median_household_income": tract.median_household_income,
+                "vacancy_rate": round(tract.vacancy_rate, 1) if tract.vacancy_rate else None,
+                "pct_cost_burdened": round(tract.pct_cost_burdened, 1) if tract.pct_cost_burdened else None,
+                "hpi_5yr_change": round(tract.hpi_5yr_change, 1) if tract.hpi_5yr_change else None,
+                # Storm & risk exposure
+                "hail_exposure_score": round(tract.hail_exposure_score, 1) if tract.hail_exposure_score else None,
+                "hail_events_3yr": tract.hail_events_3yr,
+                "max_hail_diameter_3yr": tract.max_hail_diameter_3yr,
+                "tree_canopy_mean_pct": round(tract.tree_canopy_mean_pct, 1) if tract.tree_canopy_mean_pct else None,
+                "tree_canopy_risk_score": round(tract.tree_canopy_risk_score, 1) if tract.tree_canopy_risk_score else None,
+                "climate_weathering_score": round(tract.climate_weathering_score, 1) if tract.climate_weathering_score else None,
+                "freeze_thaw_days": round(tract.freeze_thaw_days, 0) if tract.freeze_thaw_days else None,
+                "fema_disaster_count": tract.fema_disaster_count,
+                "fema_disaster_score": round(tract.fema_disaster_score, 1) if tract.fema_disaster_score else None,
+                "nri_hail_riskr": tract.nri_hail_riskr,
+                "nri_swnd_riskr": tract.nri_swnd_riskr,
+                "nri_trnd_riskr": tract.nri_trnd_riskr,
+                # Real estate market
+                "redfin_median_sale_price": tract.redfin_median_sale_price,
+                "redfin_median_dom": round(tract.redfin_median_dom, 0) if tract.redfin_median_dom else None,
+                "redfin_price_drop_pct": round(tract.redfin_price_drop_pct, 1) if tract.redfin_price_drop_pct else None,
+                # Flood risk
+                "flood_risk_category": tract.flood_risk_category,
+                "flood_insurance_required": tract.flood_insurance_required,
             },
         )
         features.append(feature)
@@ -742,4 +773,107 @@ async def get_zone_tracts(
     return TractGeoJSONResponse(
         type="FeatureCollection",
         features=features,
+    )
+
+
+@router.get("/{zone_id}/tracts/{tract_geoid}/properties")
+async def get_tract_properties(
+    zone_id: UUID,
+    tract_geoid: str,
+    sort_by: str = Query("year_built", description="Sort: year_built, assessed_value, address"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    current_user: RooferAccount = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get property details within a specific census tract.
+
+    Fetches from county GIS API on first request, then caches in database.
+    Returns paginated list of properties sorted by roof age (oldest first).
+    """
+    from app.schemas.properties import PropertyResponse, PropertyListResponse
+    from app.services.county_parcel_fetcher import get_properties_for_tract
+
+    # Verify zone exists
+    zone_stmt = select(LeadZone).where(LeadZone.id == zone_id)
+    zone_result = await db.execute(zone_stmt)
+    zone = zone_result.scalar_one_or_none()
+    if zone is None:
+        raise HTTPException(status_code=404, detail="Zone not found")
+
+    # Verify zone is in user's service area
+    intersects_stmt = select(
+        func.ST_Intersects(LeadZone.boundary, current_user.service_area)
+    ).where(LeadZone.id == zone_id)
+    intersects_result = await db.execute(intersects_stmt)
+    if not intersects_result.scalar_one():
+        raise HTTPException(status_code=403, detail="Zone is outside your service area")
+
+    # Verify tract intersects zone
+    tract_check = select(func.count()).select_from(CensusTract).where(
+        CensusTract.geoid == tract_geoid,
+        func.ST_Intersects(CensusTract.geometry, zone.boundary),
+    )
+    tract_count = await db.execute(tract_check)
+    if tract_count.scalar_one() == 0:
+        raise HTTPException(status_code=404, detail="Tract not found in this zone")
+
+    # Fetch properties (from cache or county API)
+    properties, source_county, has_adapter = await get_properties_for_tract(db, tract_geoid)
+
+    if not has_adapter:
+        return PropertyListResponse(
+            properties=[],
+            total=0,
+            page=page,
+            page_size=page_size,
+            tract_geoid=tract_geoid,
+            source_county=None,
+            data_freshness=None,
+            has_county_adapter=False,
+        )
+
+    # Sort
+    if sort_by == "assessed_value":
+        properties.sort(key=lambda p: p.assessed_value or 0, reverse=True)
+    elif sort_by == "address":
+        properties.sort(key=lambda p: p.address or "")
+    else:  # year_built — oldest first
+        properties.sort(key=lambda p: p.year_built or 9999)
+
+    # Paginate
+    total = len(properties)
+    start = (page - 1) * page_size
+    page_items = properties[start : start + page_size]
+
+    # Build response — extract lat/lon from location
+    prop_responses = []
+    for p in page_items:
+        lat, lon = None, None
+        if p.location is not None:
+            try:
+                pt = to_shape(p.location)
+                lat, lon = pt.y, pt.x
+            except Exception:
+                pass
+        pr = PropertyResponse.model_validate(p)
+        pr.latitude = lat
+        pr.longitude = lon
+        if p.last_sale_date:
+            pr.last_sale_date = p.last_sale_date.isoformat()
+        prop_responses.append(pr)
+
+    freshness = None
+    if page_items:
+        freshness = page_items[0].fetched_at.isoformat() if page_items[0].fetched_at else None
+
+    return PropertyListResponse(
+        properties=prop_responses,
+        total=total,
+        page=page,
+        page_size=page_size,
+        tract_geoid=tract_geoid,
+        source_county=source_county,
+        data_freshness=freshness,
+        has_county_adapter=True,
     )

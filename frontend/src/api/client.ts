@@ -34,6 +34,7 @@ import type {
   RecommendationResponse,
   RouteRequest,
   RouteResponse,
+  PropertyListResponse,
 } from '../types/api';
 
 // ===== Configuration =====
@@ -236,6 +237,19 @@ export async function getZoneTracts(
   zoneId: string
 ): Promise<TractGeoJSONResponse> {
   return apiFetch<TractGeoJSONResponse>(`/api/v1/zones/${zoneId}/tracts`);
+}
+
+// ===== Tract Properties =====
+
+export async function getTractProperties(
+  zoneId: string,
+  tractGeoid: string,
+  params?: { sort_by?: string; page?: number; page_size?: number }
+): Promise<PropertyListResponse> {
+  return apiFetch<PropertyListResponse>(
+    `/api/v1/zones/${zoneId}/tracts/${tractGeoid}/properties`,
+    { params: params as Record<string, string | number | undefined> }
+  );
 }
 
 // ===== Zone Feedback =====

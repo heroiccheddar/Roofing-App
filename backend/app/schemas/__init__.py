@@ -66,6 +66,9 @@ from app.schemas.recommend import RecommendedZone, RecommendationResponse
 # Route optimization
 from app.schemas.route import RouteRequest, RouteWaypoint, RouteResponse
 
+# Properties
+from app.schemas.properties import PropertyResponse, PropertyListResponse
+
 __all__ = [
     # Common
     "PaginationParams",
@@ -116,4 +119,7 @@ __all__ = [
     "RouteRequest",
     "RouteWaypoint",
     "RouteResponse",
+    # Properties
+    "PropertyResponse",
+    "PropertyListResponse",
 ]
