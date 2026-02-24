@@ -5,7 +5,6 @@ Handles profile updates, service area configuration, and subscription management
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from geoalchemy2.shape import to_shape
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func
 
@@ -77,14 +76,12 @@ async def update_service_area(
         # Create a buffered polygon using PostGIS ST_Buffer on geography
         # ST_Buffer takes meters, so convert km to meters
         # Use ST_GeogFromText to create a geography point, buffer it, then cast back to geometry
+        from geoalchemy2 import Geometry as GeoType
         service_area_expr = func.ST_SetSRID(
-            func.cast(
-                func.ST_Buffer(
-                    func.ST_GeogFromText(f'POINT({body.lon} {body.lat})'),
-                    body.radius_km * 1000
-                ),
-                text('geometry')
-            ),
+            func.ST_Buffer(
+                func.ST_GeogFromText(f'POINT({body.lon} {body.lat})'),
+                body.radius_km * 1000
+            ).cast(GeoType(geometry_type='POLYGON', srid=4326)),
             4326
         )
 
