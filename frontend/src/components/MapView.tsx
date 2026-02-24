@@ -322,6 +322,17 @@ function MapView() {
         map.getCanvas().style.cursor = ''
       })
 
+      // Fit to 60-mile radius around home immediately on load
+      if (store.homeLat != null && store.homeLon != null) {
+        const radiusDeg = 60 / 69.0
+        const lonSpread = radiusDeg / Math.cos((store.homeLat * Math.PI) / 180)
+        map.fitBounds(
+          [[store.homeLon - lonSpread, store.homeLat - radiusDeg],
+           [store.homeLon + lonSpread, store.homeLat + radiusDeg]],
+          { padding: 20, duration: 0 }
+        )
+      }
+
       setMapLoaded(true)
     })
 
