@@ -491,6 +491,14 @@ function ZonePanel({ isMobile = false }: { isMobile?: boolean }) {
         <div style={{ marginTop: 16 }}>
           <FeedbackForm zoneId={selectedZoneId} />
         </div>
+
+        {/* Lead Pins — visible in detail view too */}
+        <div style={{
+          borderTop: '1px solid var(--border-primary)',
+          marginTop: 12,
+        }}>
+          <LeadPinPanel />
+        </div>
       </div>
     )
   }
