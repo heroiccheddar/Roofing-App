@@ -6,9 +6,24 @@ import { DispositionPicker } from './components/LeadPinPanel'
 import { useCreateLeadPin } from './hooks/useLeadPins'
 import type { LeadPinDisposition } from './types/api'
 
-const Dashboard = lazy(() => import('./pages/Dashboard'))
-const Login = lazy(() => import('./pages/Login'))
-const ZoneDetail = lazy(() => import('./pages/ZoneDetail'))
+function lazyRetry(factory: () => Promise<{ default: React.ComponentType }>) {
+  return lazy(() =>
+    factory().catch(() => {
+      // Stale chunk after deploy — reload once to pick up new assets
+      const key = 'chunk-reload'
+      if (!sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, '1')
+        window.location.reload()
+      }
+      sessionStorage.removeItem(key)
+      return factory()
+    }),
+  )
+}
+
+const Dashboard = lazyRetry(() => import('./pages/Dashboard'))
+const Login = lazyRetry(() => import('./pages/Login'))
+const ZoneDetail = lazyRetry(() => import('./pages/ZoneDetail'))
 
 function PendingPinCreator() {
   const pendingPinLocation = useAppStore((s) => s.pendingPinLocation)
