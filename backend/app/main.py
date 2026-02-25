@@ -6,8 +6,11 @@ from contextlib import asynccontextmanager
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from app.config import settings
 from app.api.auth import router as auth_router
@@ -18,6 +21,7 @@ from app.api.alerts import router as alerts_router
 from app.api.canvass import router as canvass_router
 from app.api.recommend import router as recommend_router
 from app.api.route import router as route_router
+from app.api.leads import router as leads_router
 from app.scheduler.jobs import (
     job_poll_nws,
     job_scrape_spc,
@@ -99,14 +103,30 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS middleware
+# Rate limiter
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# CORS middleware — explicit methods and headers
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    """Add security headers to all responses."""
+    response: Response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    return response
 
 
 # API routers
@@ -118,6 +138,7 @@ app.include_router(alerts_router, prefix="/api/v1")
 app.include_router(canvass_router, prefix="/api/v1")
 app.include_router(recommend_router, prefix="/api/v1")
 app.include_router(route_router, prefix="/api/v1")
+app.include_router(leads_router, prefix="/api/v1")
 
 
 @app.get("/health")

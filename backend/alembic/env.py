@@ -34,6 +34,8 @@ from app.models import (
     RooferAccount,
     AlertLog,
     ZoneFeedback,
+    LeadPin,
+    PinActivity,
 )
 
 # Alembic Config object

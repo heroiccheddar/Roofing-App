@@ -70,6 +70,20 @@ class ScoreFactor(BaseModel):
     contribution: float = Field(..., description="Actual score contribution (pctile * weight)")
 
 
+class FreshnessInfo(BaseModel):
+    """Zone data freshness indicator."""
+
+    status: str = Field(
+        ..., description="Freshness category: 'fresh', 'aging', 'stale'"
+    )
+    age_days: float = Field(
+        ..., description="Days since reference timestamp"
+    )
+    label: str = Field(
+        ..., description="Human-readable freshness label (e.g., 'Storm 2d ago')"
+    )
+
+
 class ZoneResponse(BaseModel):
     """Response schema for zone listing item."""
 
@@ -129,6 +143,11 @@ class ZoneResponse(BaseModel):
 
     # Timestamps
     created_at: datetime = Field(..., description="Zone creation timestamp")
+
+    # Freshness
+    freshness: FreshnessInfo | None = Field(
+        None, description="Data freshness indicator computed from zone timestamps"
+    )
 
 
 class ZoneDetailResponse(ZoneResponse):

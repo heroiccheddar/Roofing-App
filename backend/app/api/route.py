@@ -19,7 +19,6 @@ does not need to handle the difference.
 """
 
 import logging
-import math
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -35,6 +34,7 @@ from app.database import get_db
 from app.models.lead_zone import LeadZone
 from app.models.roofer_account import RooferAccount
 from app.schemas.route import RouteRequest, RouteResponse, RouteWaypoint
+from app.utils.geo import haversine_km
 
 logger = logging.getLogger(__name__)
 
@@ -48,23 +48,6 @@ _ORS_TIMEOUT_S = 10.0
 _FALLBACK_SPEED_KMH = 50.0
 
 
-# ---------------------------------------------------------------------------
-# Haversine helpers
-# ---------------------------------------------------------------------------
-
-def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """Return great-circle distance in kilometres between two WGS84 points."""
-    r = 6371.0
-    phi1, phi2 = math.radians(lat1), math.radians(lat2)
-    dphi = math.radians(lat2 - lat1)
-    dlambda = math.radians(lon2 - lon1)
-    a = (
-        math.sin(dphi / 2) ** 2
-        + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
-    )
-    return 2 * r * math.asin(math.sqrt(a))
-
-
 def _total_route_distance_km(
     start_lat: float,
     start_lon: float,
@@ -74,7 +57,7 @@ def _total_route_distance_km(
     points = [(start_lat, start_lon)] + list(ordered_stops)
     total = 0.0
     for i in range(len(points) - 1):
-        total += _haversine_km(points[i][0], points[i][1], points[i + 1][0], points[i + 1][1])
+        total += haversine_km(points[i][0], points[i][1], points[i + 1][0], points[i + 1][1])
     return total
 
 
@@ -105,7 +88,7 @@ def _nearest_neighbour_order(
     while remaining:
         nearest_idx = min(
             range(len(remaining)),
-            key=lambda i: _haversine_km(cur_lat, cur_lon, remaining[i][1], remaining[i][2]),
+            key=lambda i: haversine_km(cur_lat, cur_lon, remaining[i][1], remaining[i][2]),
         )
         nearest = remaining.pop(nearest_idx)
         ordered.append(nearest)

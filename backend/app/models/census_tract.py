@@ -37,6 +37,9 @@ class CensusTract(Base):
     county_fips = Column(String, nullable=False)
     tract_code = Column(String, nullable=False)
 
+    # Human-readable name (lazily populated via Mapbox reverse geocoding)
+    neighborhood_name = Column(String, nullable=True)
+
     # Spatial data
     geometry = Column(
         Geometry(geometry_type='MULTIPOLYGON', srid=4326), nullable=False

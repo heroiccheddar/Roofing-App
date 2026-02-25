@@ -4,10 +4,11 @@ import useAppStore from '../stores/appStore'
 import { useZoneList, useZoneDetail } from '../hooks/useZones'
 import FeedbackForm from './FeedbackForm'
 import CanvassTracker from './CanvassTracker'
+import LeadPinPanel from './LeadPinPanel'
 import { haversineKm, formatDistance } from '../utils/distance'
 import { scoreColor, ordinal } from '../utils/zoneFormatters'
-import { InfoTip, Stat, ExposureBar, SubScoreBar, RiskBadge } from './ZoneDetailHelpers'
-import { ZoneListSkeleton } from './SkeletonLoader'
+import { InfoTip, Stat, ExposureBar, SubScoreBar, RiskBadge, FreshnessBadge } from './ZoneDetailHelpers'
+import { ZoneCardSkeleton, ZoneListSkeleton } from './SkeletonLoader'
 import ErrorBoundary from './ErrorBoundary'
 
 function ZonePanel({ isMobile = false }: { isMobile?: boolean }) {
@@ -27,7 +28,7 @@ function ZonePanel({ isMobile = false }: { isMobile?: boolean }) {
   const toggleZoneInRoute = useAppStore((s) => s.toggleZoneInRoute)
   const routeZoneIds = useAppStore((s) => s.routeZoneIds)
   const { data: zoneList, isLoading: listLoading, error: listError } = useZoneList()
-  const { data: detail } = useZoneDetail(selectedZoneId)
+  const { data: detail, isLoading: detailLoading } = useZoneDetail(selectedZoneId)
 
   // Compute distance for each zone + filter by maxDistance
   const maxDistanceKm = maxDistanceMiles * 1.60934
@@ -83,6 +84,20 @@ function ZonePanel({ isMobile = false }: { isMobile?: boolean }) {
     ? (detail.has_active_storm === true || detail.lead_type === 'storm_boosted' || detail.event_count > 0)
     : false
 
+  // Show skeleton while zone detail is loading
+  if (selectedZoneId && !detail && detailLoading) {
+    return (
+      <div style={{ ...styles.panel, height: '100%', overflowY: 'auto' }}>
+        <button onClick={() => setSelectedZoneId(null)} style={styles.backBtn}>
+          Back to list
+        </button>
+        <ZoneCardSkeleton />
+        <ZoneCardSkeleton />
+        <ZoneCardSkeleton />
+      </div>
+    )
+  }
+
   // If a zone is selected, show detail view
   if (selectedZoneId && detail) {
     return (
@@ -119,6 +134,9 @@ function ZonePanel({ isMobile = false }: { isMobile?: boolean }) {
             )}
             {detailDistance !== null && (
               <span style={styles.distancePill}>{formatDistance(detailDistance)}</span>
+            )}
+            {detail.freshness && (
+              <FreshnessBadge status={detail.freshness.status} label={detail.freshness.label} />
             )}
           </div>
           {detail.base_score != null && (
@@ -591,7 +609,7 @@ function ZonePanel({ isMobile = false }: { isMobile?: boolean }) {
               <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
                 <th style={styles.th}>Score</th>
                 <th style={styles.th}>Location</th>
-                <th style={styles.th}>Type</th>
+                <th style={styles.th}>Data</th>
                 <th style={styles.th}>Dist</th>
               </tr>
             </thead>
@@ -622,7 +640,9 @@ function ZonePanel({ isMobile = false }: { isMobile?: boolean }) {
                     {zone.display_name || '-'}
                   </td>
                   <td style={styles.td}>
-                    {(zone.has_active_storm || zone.lead_type === 'storm_boosted') ? (
+                    {zone.freshness ? (
+                      <FreshnessBadge status={zone.freshness.status} label={zone.freshness.label} compact />
+                    ) : (zone.has_active_storm || zone.lead_type === 'storm_boosted') ? (
                       <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: '#fff7ed', color: '#c2410c' }}>Storm +</span>
                     ) : null}
                   </td>
@@ -659,6 +679,9 @@ function ZonePanel({ isMobile = false }: { isMobile?: boolean }) {
                     Storm +
                   </span>
                 )}
+                {zone.freshness && (
+                  <FreshnessBadge status={zone.freshness.status} label={zone.freshness.label} compact />
+                )}
                 <button
                   onClick={(e) => { e.stopPropagation(); toggleZoneInRoute(zone.id) }}
                   style={{
@@ -686,6 +709,15 @@ function ZonePanel({ isMobile = false }: { isMobile?: boolean }) {
           No zones found matching filters
         </p>
       )}
+      </div>
+
+      {/* Lead Pins section — always visible in the list view */}
+      <div style={{
+        borderTop: '1px solid var(--border-primary)',
+        marginTop: 8,
+        flexShrink: 0,
+      }}>
+        <LeadPinPanel />
       </div>
     </div>
   )

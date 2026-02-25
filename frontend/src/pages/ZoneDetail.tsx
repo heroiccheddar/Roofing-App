@@ -12,7 +12,7 @@ import useAppStore from '../stores/appStore'
 import { useZoneDetail } from '../hooks/useZones'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { scoreColor, ordinal } from '../utils/zoneFormatters'
-import { InfoTip, Stat, ExposureBar, SubScoreBar, RiskBadge } from '../components/ZoneDetailHelpers'
+import { InfoTip, Stat, ExposureBar, SubScoreBar, RiskBadge, FreshnessBadge } from '../components/ZoneDetailHelpers'
 import TractBreakdown from '../components/TractBreakdown'
 import FeedbackForm from '../components/FeedbackForm'
 import CanvassTracker from '../components/CanvassTracker'
@@ -74,7 +74,6 @@ function Section({
       borderLeft: accentBorder ? `3px solid ${accentBorder}` : undefined,
       borderRadius: 10,
       marginBottom: 12,
-      overflow: 'hidden',
     }}>
       <button
         onClick={() => setOpen(!open)}
@@ -183,6 +182,9 @@ export default function ZoneDetail() {
           <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>
             {detail.decay_adjusted_score.toFixed(1)}
           </span>
+          {detail.freshness && (
+            <FreshnessBadge status={detail.freshness.status} label={detail.freshness.label} compact />
+          )}
           <span style={{
             fontSize: 14, color: 'var(--text-secondary)', fontWeight: 500,
             flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',

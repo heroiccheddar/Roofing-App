@@ -4,6 +4,8 @@ Retrieves scored lead zones filtered by location, score threshold, and date rang
 Supports map viewport queries and list views.
 """
 
+import asyncio
+import logging
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -14,13 +16,16 @@ from geoalchemy2.shape import to_shape
 from shapely.geometry import mapping
 
 from app.api.deps import get_current_user
-from app.database import get_db
+from app.config import settings
+from app.database import get_db, AsyncSessionLocal
 from app.models.lead_zone import LeadZone
 from app.models.roofer_account import RooferAccount
 from app.models.census_tract import CensusTract
 from app.models.storm_event import StormEvent
+from app.services.geocoding import reverse_geocode_neighborhood
 from app.schemas.zones import (
     ZoneListParams,
+    FreshnessInfo,
     ZoneResponse,
     ZoneDetailResponse,
     ZoneListResponse,
@@ -32,6 +37,9 @@ from app.schemas.zones import (
     TractGeoJSONResponse,
 )
 from app.scoring.decay import calculate_decay
+from app.scoring.freshness import compute_freshness
+
+logger = logging.getLogger(__name__)
 
 FEATURE_LABELS = {
     "roof_age": "Roof Age",
@@ -196,6 +204,14 @@ async def get_zones_geojson(
         # Extract centroid for client-side distance filtering
         centroid_shape = to_shape(zone.centroid)
 
+        # Compute freshness status
+        freshness_data = compute_freshness(
+            has_active_storm=getattr(zone, 'has_active_storm', False),
+            primary_event_timestamp=zone.primary_event_timestamp,
+            base_scored_at=getattr(zone, 'base_scored_at', None),
+            updated_at=zone.updated_at,
+        )
+
         # Create feature with zone properties
         feature = ZoneGeoJSONFeature(
             type="Feature",
@@ -223,6 +239,7 @@ async def get_zones_geojson(
                 "market_quality": getattr(zone, 'market_quality', None),
                 "risk_exposure": getattr(zone, 'risk_exposure', None),
                 "canvass_efficiency": getattr(zone, 'canvass_efficiency', None),
+                "freshness_status": freshness_data["status"],
             },
         )
         features.append(feature)
@@ -299,6 +316,14 @@ async def list_zones(
         centroid_lat = centroid_shape.y
         centroid_lon = centroid_shape.x
 
+        # Compute freshness status
+        freshness_data = compute_freshness(
+            has_active_storm=getattr(zone, 'has_active_storm', False),
+            primary_event_timestamp=zone.primary_event_timestamp,
+            base_scored_at=getattr(zone, 'base_scored_at', None),
+            updated_at=zone.updated_at,
+        )
+
         # Map zone to response schema
         zone_response = ZoneResponse(
             id=zone.id,
@@ -320,6 +345,7 @@ async def list_zones(
             centroid_lon=centroid_lon,
             display_name=zone.display_name,
             created_at=zone.created_at,
+            freshness=FreshnessInfo(**freshness_data),
         )
         zone_responses.append(zone_response)
 
@@ -331,46 +357,149 @@ async def list_zones(
     )
 
 
+# ---------------------------------------------------------------------------
+# Zone detail — concurrent query helpers
+# Each helper uses its own DB session so asyncio.gather can run them in
+# parallel (asyncpg doesn't support concurrent queries on one connection).
+# ---------------------------------------------------------------------------
+
+async def _fetch_events(boundary, has_storm: bool) -> list[StormEvent]:
+    """Fetch storm events within zone boundary."""
+    if not has_storm:
+        return []
+    async with AsyncSessionLocal() as db:
+        stmt = select(StormEvent).where(
+            StormEvent.scored == True,
+            func.ST_Within(StormEvent.location, boundary),
+        ).order_by(StormEvent.event_timestamp.desc())
+        result = await db.execute(stmt)
+        return list(result.scalars().all())
+
+
+async def _fetch_enriched_demographics(boundary):
+    """Aggregate census demographics + avg year built for intersecting tracts."""
+    async with AsyncSessionLocal() as db:
+        stmt = select(
+            func.avg(CensusTract.median_year_built).label("avg_year_built"),
+            func.avg(CensusTract.median_household_income).label("avg_income"),
+            func.avg(CensusTract.vacancy_rate).label("avg_vacancy"),
+            func.avg(CensusTract.single_family_pct).label("avg_sf_pct"),
+            func.avg(CensusTract.pct_built_before_1980).label("avg_pre1980"),
+            func.sum(CensusTract.building_count).label("total_buildings"),
+            func.avg(CensusTract.avg_building_area_sqm).label("avg_bldg_area"),
+            func.avg(CensusTract.hail_exposure_score).label("avg_hail_exposure"),
+            func.sum(CensusTract.hail_events_3yr).label("total_hail_events"),
+            func.avg(CensusTract.fema_disaster_score).label("avg_fema_score"),
+            func.max(CensusTract.fema_disaster_count).label("max_fema_count"),
+            func.avg(CensusTract.tree_canopy_mean_pct).label("avg_canopy_mean"),
+            func.avg(CensusTract.tree_canopy_risk_score).label("avg_canopy_risk"),
+            func.avg(CensusTract.age_clustering_score).label("avg_clustering_score"),
+            func.avg(CensusTract.pct_cost_burdened).label("avg_cost_burdened"),
+            func.avg(CensusTract.hpi_5yr_change).label("avg_hpi_change"),
+            func.avg(CensusTract.verified_damage_5yr_usd).label("avg_verified_damage"),
+            func.avg(CensusTract.climate_weathering_score).label("avg_climate_weathering"),
+            func.avg(CensusTract.svi_overall).label("avg_svi_overall"),
+            func.avg(CensusTract.svi_housing_type).label("avg_svi_housing_type"),
+            func.max(CensusTract.bps_single_family_permits).label("bps_sf_permits"),
+            func.max(CensusTract.bps_all_permits).label("bps_all_permits"),
+            func.max(CensusTract.bps_total_value).label("bps_total_value"),
+            func.avg(CensusTract.ej_lead_paint).label("avg_ej_lead_paint"),
+            func.avg(CensusTract.ej_percentile).label("avg_ej_percentile"),
+            func.avg(CensusTract.redfin_median_sale_price).label("avg_redfin_sale_price"),
+            func.avg(CensusTract.redfin_median_dom).label("avg_redfin_dom"),
+            func.avg(CensusTract.redfin_price_drop_pct).label("avg_redfin_price_drops"),
+        ).where(
+            func.ST_Intersects(CensusTract.geometry, boundary),
+        )
+        result = await db.execute(stmt)
+        return result.one_or_none()
+
+
+async def _fetch_dominant_decade(boundary):
+    """Get most common dominant_decade from intersecting tracts."""
+    async with AsyncSessionLocal() as db:
+        stmt = select(CensusTract.dominant_decade).where(
+            func.ST_Intersects(CensusTract.geometry, boundary),
+            CensusTract.dominant_decade.isnot(None),
+        ).group_by(CensusTract.dominant_decade).order_by(
+            func.count().desc()
+        ).limit(1)
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
+
+
+async def _fetch_ruca_category(boundary):
+    """Get most common RUCA category from intersecting tracts."""
+    async with AsyncSessionLocal() as db:
+        stmt = select(CensusTract.ruca_category).where(
+            func.ST_Intersects(CensusTract.geometry, boundary),
+            CensusTract.ruca_category.isnot(None),
+        ).group_by(CensusTract.ruca_category).order_by(
+            func.count().desc()
+        ).limit(1)
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
+
+
+async def _fetch_flood_risk(boundary):
+    """Get most common flood risk category from intersecting tracts."""
+    async with AsyncSessionLocal() as db:
+        stmt = select(
+            CensusTract.flood_risk_category,
+            CensusTract.flood_insurance_required,
+        ).where(
+            func.ST_Intersects(CensusTract.geometry, boundary),
+            CensusTract.flood_risk_category.isnot(None),
+        ).group_by(
+            CensusTract.flood_risk_category,
+            CensusTract.flood_insurance_required,
+        ).order_by(
+            func.count().desc()
+        ).limit(1)
+        result = await db.execute(stmt)
+        return result.one_or_none()
+
+
+async def _fetch_nri_risk(boundary):
+    """Get NRI risk ratings from an intersecting tract."""
+    async with AsyncSessionLocal() as db:
+        stmt = select(
+            CensusTract.nri_hail_riskr,
+            CensusTract.nri_swnd_riskr,
+            CensusTract.nri_trnd_riskr,
+        ).where(
+            func.ST_Intersects(CensusTract.geometry, boundary),
+            CensusTract.nri_hail_riskr.isnot(None),
+        ).limit(1)
+        result = await db.execute(stmt)
+        return result.one_or_none()
+
+
+async def _fetch_factor_tracts(boundary, lead_type: str) -> list[ScoreFactor]:
+    """Fetch census tracts and compute score factors."""
+    async with AsyncSessionLocal() as db:
+        stmt = select(CensusTract).where(
+            func.ST_Intersects(CensusTract.geometry, boundary),
+        )
+        result = await db.execute(stmt)
+        tracts = list(result.scalars().all())
+        return compute_score_factors(tracts, lead_type)
+
+
 @router.get("/{zone_id}", response_model=ZoneDetailResponse)
 async def get_zone(
     zone_id: UUID,
     current_user: RooferAccount = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get detailed information for a specific lead zone.
-
-    Args:
-        zone_id: Zone UUID
-        current_user: Authenticated roofer account
-        db: Database session
-
-    Returns:
-        Zone detail with decay-adjusted score and contributing events
-
-    Raises:
-        404: Zone not found
-        403: Zone outside user's service area
-    """
-    # Query zone by ID
+    """Get detailed information for a specific lead zone."""
+    # Step 1: Zone lookup (must be first — others depend on zone.boundary)
     stmt = select(LeadZone).where(LeadZone.id == zone_id)
     result = await db.execute(stmt)
     zone = result.scalar_one_or_none()
 
     if zone is None:
         raise HTTPException(status_code=404, detail="Zone not found")
-
-    # Verify zone is within user's service area
-    intersects_stmt = select(
-        func.ST_Intersects(LeadZone.boundary, current_user.service_area)
-    ).where(LeadZone.id == zone_id)
-    intersects_result = await db.execute(intersects_stmt)
-    intersects = intersects_result.scalar_one()
-
-    if not intersects:
-        raise HTTPException(
-            status_code=403,
-            detail="Zone is outside your service area"
-        )
 
     # Extract centroid coordinates
     centroid_shape = to_shape(zone.centroid)
@@ -384,147 +513,58 @@ async def get_zone(
         zone.density_bonus * 0.20
     )
 
-    # Handle decay and hours_since for storm-boosted vs standard zones
     has_storm = getattr(zone, 'has_active_storm', False) or zone.lead_type == 'storm'
     if zone.primary_event_timestamp is None or not has_storm:
-        # standard zones (no active storm) have no time decay
         decay_adjusted_score = zone.composite_score
         hours_since = 0.0
     else:
-        # storm-boosted zones have decay applied
         decay_factor = calculate_decay(zone.primary_event_timestamp)
         decay_adjusted_score = max(0, min(raw_composite * decay_factor, 100))
         hours_since = (
             datetime.now(timezone.utc) - zone.primary_event_timestamp
         ).total_seconds() / 3600
 
-    # Fetch contributing events within zone boundary only for storm-boosted zones
-    event_briefs = []
-    if has_storm or zone.lead_type in ('storm', 'storm_boosted'):
-        events_stmt = select(StormEvent).where(
-            StormEvent.scored == True,
-            func.ST_Within(StormEvent.location, zone.boundary)
-        ).order_by(StormEvent.event_timestamp.desc())
+    # Step 2: Run all remaining queries concurrently (each uses its own session)
+    boundary = zone.boundary
+    (
+        events, enriched, zone_dominant_decade, zone_ruca_category,
+        flood_row, nri_row, score_factors,
+    ) = await asyncio.gather(
+        _fetch_events(boundary, has_storm or zone.lead_type in ('storm', 'storm_boosted')),
+        _fetch_enriched_demographics(boundary),
+        _fetch_dominant_decade(boundary),
+        _fetch_ruca_category(boundary),
+        _fetch_flood_risk(boundary),
+        _fetch_nri_risk(boundary),
+        _fetch_factor_tracts(boundary, zone.lead_type),
+    )
 
-        events_result = await db.execute(events_stmt)
-        events = events_result.scalars().all()
+    # Process events into briefs
+    event_briefs = [
+        StormEventBrief(
+            id=event.id,
+            source=event.source,
+            event_type=event.event_type,
+            hail_diameter=event.hail_diameter,
+            wind_speed=event.wind_speed,
+            event_timestamp=event.event_timestamp,
+            radar_confidence=event.radar_confidence,
+        )
+        for event in events
+    ]
 
-        # Convert events to StormEventBrief
-        event_briefs = [
-            StormEventBrief(
-                id=event.id,
-                source=event.source,
-                event_type=event.event_type,
-                hail_diameter=event.hail_diameter,
-                wind_speed=event.wind_speed,
-                event_timestamp=event.event_timestamp,
-                radar_confidence=event.radar_confidence,
-            )
-            for event in events
-        ]
-
-    # Compute average roof age from intersecting census tracts
+    # Extract avg roof age from merged enriched query
     avg_roof_age_years = None
-    tracts_stmt = select(func.avg(CensusTract.median_year_built)).where(
-        CensusTract.median_year_built.isnot(None),
-        func.ST_Intersects(CensusTract.geometry, zone.boundary),
+    if enriched and enriched.avg_year_built is not None:
+        avg_roof_age_years = round(datetime.now().year - enriched.avg_year_built, 1)
+
+    # Compute freshness status
+    freshness_data = compute_freshness(
+        has_active_storm=has_storm,
+        primary_event_timestamp=zone.primary_event_timestamp,
+        base_scored_at=getattr(zone, 'base_scored_at', None),
+        updated_at=zone.updated_at,
     )
-    tracts_result = await db.execute(tracts_stmt)
-    avg_year_built = tracts_result.scalar_one_or_none()
-    if avg_year_built is not None:
-        avg_roof_age_years = round(datetime.now().year - avg_year_built, 1)
-
-    # Aggregate enriched demographics from intersecting tracts
-    enriched_stmt = select(
-        func.avg(CensusTract.median_household_income).label("avg_income"),
-        func.avg(CensusTract.vacancy_rate).label("avg_vacancy"),
-        func.avg(CensusTract.single_family_pct).label("avg_sf_pct"),
-        func.avg(CensusTract.pct_built_before_1980).label("avg_pre1980"),
-        func.sum(CensusTract.building_count).label("total_buildings"),
-        func.avg(CensusTract.avg_building_area_sqm).label("avg_bldg_area"),
-        func.avg(CensusTract.hail_exposure_score).label("avg_hail_exposure"),
-        func.sum(CensusTract.hail_events_3yr).label("total_hail_events"),
-        func.avg(CensusTract.fema_disaster_score).label("avg_fema_score"),
-        func.max(CensusTract.fema_disaster_count).label("max_fema_count"),
-        func.avg(CensusTract.tree_canopy_mean_pct).label("avg_canopy_mean"),
-        func.avg(CensusTract.tree_canopy_risk_score).label("avg_canopy_risk"),
-        func.avg(CensusTract.age_clustering_score).label("avg_clustering_score"),
-        func.avg(CensusTract.pct_cost_burdened).label("avg_cost_burdened"),
-        func.avg(CensusTract.hpi_5yr_change).label("avg_hpi_change"),
-        func.avg(CensusTract.verified_damage_5yr_usd).label("avg_verified_damage"),
-        func.avg(CensusTract.climate_weathering_score).label("avg_climate_weathering"),
-        func.avg(CensusTract.svi_overall).label("avg_svi_overall"),
-        func.avg(CensusTract.svi_housing_type).label("avg_svi_housing_type"),
-        func.max(CensusTract.bps_single_family_permits).label("bps_sf_permits"),
-        func.max(CensusTract.bps_all_permits).label("bps_all_permits"),
-        func.max(CensusTract.bps_total_value).label("bps_total_value"),
-        func.avg(CensusTract.ej_lead_paint).label("avg_ej_lead_paint"),
-        func.avg(CensusTract.ej_percentile).label("avg_ej_percentile"),
-        func.avg(CensusTract.redfin_median_sale_price).label("avg_redfin_sale_price"),
-        func.avg(CensusTract.redfin_median_dom).label("avg_redfin_dom"),
-        func.avg(CensusTract.redfin_price_drop_pct).label("avg_redfin_price_drops"),
-    ).where(
-        func.ST_Intersects(CensusTract.geometry, zone.boundary),
-    )
-    enriched_result = await db.execute(enriched_stmt)
-    enriched = enriched_result.one_or_none()
-
-    # Get the most common dominant_decade in the zone
-    mode_decade_stmt = select(CensusTract.dominant_decade).where(
-        func.ST_Intersects(CensusTract.geometry, zone.boundary),
-        CensusTract.dominant_decade.isnot(None),
-    ).group_by(CensusTract.dominant_decade).order_by(
-        func.count().desc()
-    ).limit(1)
-    mode_decade_result = await db.execute(mode_decade_stmt)
-    zone_dominant_decade = mode_decade_result.scalar_one_or_none()
-
-    # Get most common RUCA category (mode) from intersecting tracts
-    mode_ruca_stmt = select(CensusTract.ruca_category).where(
-        func.ST_Intersects(CensusTract.geometry, zone.boundary),
-        CensusTract.ruca_category.isnot(None),
-    ).group_by(CensusTract.ruca_category).order_by(
-        func.count().desc()
-    ).limit(1)
-    mode_ruca_result = await db.execute(mode_ruca_stmt)
-    zone_ruca_category = mode_ruca_result.scalar_one_or_none()
-
-    # Get most common flood risk category (mode) from intersecting tracts
-    mode_flood_stmt = select(
-        CensusTract.flood_risk_category,
-        CensusTract.flood_insurance_required,
-    ).where(
-        func.ST_Intersects(CensusTract.geometry, zone.boundary),
-        CensusTract.flood_risk_category.isnot(None),
-    ).group_by(
-        CensusTract.flood_risk_category,
-        CensusTract.flood_insurance_required,
-    ).order_by(
-        func.count().desc()
-    ).limit(1)
-    mode_flood_result = await db.execute(mode_flood_stmt)
-    flood_row = mode_flood_result.one_or_none()
-
-    # Get most common NRI risk ratings (mode) from intersecting tracts
-    # Use a simpler approach: get the first non-null value
-    nri_stmt = select(
-        CensusTract.nri_hail_riskr,
-        CensusTract.nri_swnd_riskr,
-        CensusTract.nri_trnd_riskr,
-    ).where(
-        func.ST_Intersects(CensusTract.geometry, zone.boundary),
-        CensusTract.nri_hail_riskr.isnot(None),
-    ).limit(1)
-    nri_result = await db.execute(nri_stmt)
-    nri_row = nri_result.one_or_none()
-
-    # Compute score factors from census tract percentile ranks using UNIFIED_WEIGHTS
-    factor_stmt = select(CensusTract).where(
-        func.ST_Intersects(CensusTract.geometry, zone.boundary),
-    )
-    factor_result = await db.execute(factor_stmt)
-    factor_tracts = list(factor_result.scalars().all())
-    score_factors = compute_score_factors(factor_tracts, zone.lead_type)
 
     # Build detail response
     return ZoneDetailResponse(
@@ -547,6 +587,7 @@ async def get_zone(
         centroid_lon=centroid_lon,
         display_name=zone.display_name,
         created_at=zone.created_at,
+        freshness=FreshnessInfo(**freshness_data),
         decay_adjusted_score=decay_adjusted_score,
         hours_since_storm=hours_since,
         events=event_briefs,
@@ -617,19 +658,6 @@ async def get_zone_events(
     if zone is None:
         raise HTTPException(status_code=404, detail="Zone not found")
 
-    # Verify zone is within user's service area
-    intersects_stmt = select(
-        func.ST_Intersects(LeadZone.boundary, current_user.service_area)
-    ).where(LeadZone.id == zone_id)
-    intersects_result = await db.execute(intersects_stmt)
-    intersects = intersects_result.scalar_one()
-
-    if not intersects:
-        raise HTTPException(
-            status_code=403,
-            detail="Zone is outside your service area"
-        )
-
     # Return empty list for standard (non-storm) zones
     has_storm = getattr(zone, 'has_active_storm', False) or zone.lead_type in ('storm', 'storm_boosted')
     if not has_storm and zone.lead_type not in ('storm', 'storm_boosted'):
@@ -698,20 +726,27 @@ async def get_zone_tracts(
     if zone is None:
         raise HTTPException(status_code=404, detail="Zone not found")
 
-    # Verify zone is within user's service area
-    intersects_stmt = select(
-        func.ST_Intersects(LeadZone.boundary, current_user.service_area)
-    ).where(LeadZone.id == zone_id)
-    intersects_result = await db.execute(intersects_stmt)
-    if not intersects_result.scalar_one():
-        raise HTTPException(status_code=403, detail="Zone is outside your service area")
-
     # Get intersecting census tracts
     tracts_stmt = select(CensusTract).where(
         func.ST_Intersects(CensusTract.geometry, zone.boundary),
     )
     tracts_result = await db.execute(tracts_stmt)
     tracts = tracts_result.scalars().all()
+
+    # Lazily populate neighborhood names for tracts that don't have one yet
+    tracts_needing_names = [t for t in tracts if not t.neighborhood_name]
+    if tracts_needing_names and settings.MAPBOX_TOKEN:
+        for tract in tracts_needing_names:
+            try:
+                centroid = to_shape(tract.geometry).centroid
+                name = reverse_geocode_neighborhood(
+                    centroid.x, centroid.y, settings.MAPBOX_TOKEN
+                )
+                if name:
+                    tract.neighborhood_name = name
+            except Exception as e:
+                logger.warning(f"Failed to geocode tract {tract.geoid}: {e}")
+        await db.commit()
 
     # Convert to GeoJSON features
     features = []
@@ -727,6 +762,7 @@ async def get_zone_tracts(
             ),
             properties={
                 "geoid": tract.geoid,
+                "neighborhood_name": tract.neighborhood_name,
                 "canvass_priority": priority,
                 # Housing stock
                 "owner_occupied_pct": round(tract.owner_occupied_pct, 1) if tract.owner_occupied_pct else None,
@@ -781,8 +817,6 @@ async def get_tract_properties(
     zone_id: UUID,
     tract_geoid: str,
     sort_by: str = Query("year_built", description="Sort: year_built, assessed_value, address"),
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=200),
     current_user: RooferAccount = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -801,14 +835,6 @@ async def get_tract_properties(
     if zone is None:
         raise HTTPException(status_code=404, detail="Zone not found")
 
-    # Verify zone is in user's service area
-    intersects_stmt = select(
-        func.ST_Intersects(LeadZone.boundary, current_user.service_area)
-    ).where(LeadZone.id == zone_id)
-    intersects_result = await db.execute(intersects_stmt)
-    if not intersects_result.scalar_one():
-        raise HTTPException(status_code=403, detail="Zone is outside your service area")
-
     # Verify tract intersects zone
     tract_check = select(func.count()).select_from(CensusTract).where(
         CensusTract.geoid == tract_geoid,
@@ -818,20 +844,8 @@ async def get_tract_properties(
     if tract_count.scalar_one() == 0:
         raise HTTPException(status_code=404, detail="Tract not found in this zone")
 
-    # Fetch properties (from cache or county API)
+    # Fetch properties (from cache, county API, or NSI)
     properties, source_county, has_adapter = await get_properties_for_tract(db, tract_geoid)
-
-    if not has_adapter:
-        return PropertyListResponse(
-            properties=[],
-            total=0,
-            page=page,
-            page_size=page_size,
-            tract_geoid=tract_geoid,
-            source_county=None,
-            data_freshness=None,
-            has_county_adapter=False,
-        )
 
     # Sort
     if sort_by == "assessed_value":
@@ -841,14 +855,9 @@ async def get_tract_properties(
     else:  # year_built — oldest first
         properties.sort(key=lambda p: p.year_built or 9999)
 
-    # Paginate
-    total = len(properties)
-    start = (page - 1) * page_size
-    page_items = properties[start : start + page_size]
-
     # Build response — extract lat/lon from location
     prop_responses = []
-    for p in page_items:
+    for p in properties:
         lat, lon = None, None
         if p.location is not None:
             try:
@@ -864,14 +873,12 @@ async def get_tract_properties(
         prop_responses.append(pr)
 
     freshness = None
-    if page_items:
-        freshness = page_items[0].fetched_at.isoformat() if page_items[0].fetched_at else None
+    if properties:
+        freshness = properties[0].fetched_at.isoformat() if properties[0].fetched_at else None
 
     return PropertyListResponse(
         properties=prop_responses,
-        total=total,
-        page=page,
-        page_size=page_size,
+        total=len(properties),
         tract_geoid=tract_geoid,
         source_county=source_county,
         data_freshness=freshness,

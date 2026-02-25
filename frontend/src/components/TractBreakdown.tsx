@@ -12,6 +12,7 @@ import type { PropertyResponse } from '../types/api'
 
 interface TractProperties {
   geoid: string
+  neighborhood_name: string | null
   canvass_priority: number
   // Housing stock
   owner_occupied_pct: number | null
@@ -180,11 +181,16 @@ function TractCard({ p, isFocused, onFocus, zoneId }: { p: TractProperties; isFo
           fontSize: 12, fontWeight: 600, padding: '3px 8px', borderRadius: 6,
           background: colors.bg, color: colors.fg,
         }}>
-          {p.canvass_priority.toFixed(0)} - {priorityLabel(p.canvass_priority)}
+          {p.canvass_priority.toFixed(0)}
         </span>
-        <span style={{ fontSize: 11, color: 'var(--text-tertiary)', fontFamily: 'monospace' }}>
-          {p.geoid}
-        </span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0, flex: 1 }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {p.neighborhood_name || priorityLabel(p.canvass_priority)}
+          </span>
+          <span style={{ fontSize: 10, color: 'var(--text-tertiary)', fontFamily: 'monospace' }}>
+            {p.geoid}
+          </span>
+        </div>
         <button
           onClick={onFocus}
           style={{
@@ -193,7 +199,7 @@ function TractCard({ p, isFocused, onFocus, zoneId }: { p: TractProperties; isFo
             borderRadius: 6, cursor: 'pointer',
             background: isFocused ? 'var(--accent-blue)' : 'transparent',
             color: isFocused ? '#fff' : 'var(--accent-blue)',
-            fontWeight: 500,
+            fontWeight: 500, flexShrink: 0,
           }}
         >
           {isFocused ? 'Focused' : 'Focus'}
@@ -359,9 +365,53 @@ function roofAgeBadge(age: number | undefined | null): { bg: string; fg: string;
   return { bg: '#f0fdf4', fg: '#16a34a', label: `${age}yr` }
 }
 
+const PAGE_SIZE = 20
+
+function sortProperties(props: PropertyResponse[], sortBy: string): PropertyResponse[] {
+  return [...props].sort((a, b) => {
+    if (sortBy === 'assessed_value') return (b.assessed_value ?? 0) - (a.assessed_value ?? 0)
+    if (sortBy === 'address') return (a.address ?? '').localeCompare(b.address ?? '')
+    return (a.year_built ?? 9999) - (b.year_built ?? 9999) // oldest first
+  })
+}
+
+/** Extract street name from an address like "3380 SCOTT DR SW" → "SCOTT DR SW" */
+function extractStreet(address: string | null | undefined): string {
+  if (!address) return 'Unknown'
+  const trimmed = address.trim()
+  // Strip leading house number(s) and whitespace
+  const match = trimmed.match(/^\d+[-\s]*\d*\s+(.+)/)
+  return match ? match[1].replace(/\s+/g, ' ').trim() : trimmed
+}
+
+type StreetGroup = { street: string; properties: PropertyResponse[]; avgAge: number | null }
+
+function groupByStreet(props: PropertyResponse[]): StreetGroup[] {
+  const map = new Map<string, PropertyResponse[]>()
+  for (const p of props) {
+    const street = extractStreet(p.address)
+    const list = map.get(street)
+    if (list) list.push(p)
+    else map.set(street, [p])
+  }
+  const groups: StreetGroup[] = []
+  for (const [street, properties] of map) {
+    const ages = properties.map(p => p.estimated_roof_age).filter((a): a is number => a != null)
+    const avgAge = ages.length > 0 ? ages.reduce((s, a) => s + a, 0) / ages.length : null
+    groups.push({ street, properties, avgAge })
+  }
+  // Sort groups A-Z by street name
+  groups.sort((a, b) => a.street.localeCompare(b.street))
+  return groups
+}
+
 function PropertyList({ zoneId, tractGeoid }: { zoneId: string; tractGeoid: string }) {
   const [sortBy, setSortBy] = useState('year_built')
-  const { data, isLoading, error } = useTractProperties(zoneId, tractGeoid, sortBy)
+  const [search, setSearch] = useState('')
+  const [groupByStreetOn, setGroupByStreetOn] = useState(true)
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+  const [expandedStreets, setExpandedStreets] = useState<Set<string>>(new Set())
+  const { data, isLoading, error } = useTractProperties(zoneId, tractGeoid)
 
   if (isLoading) {
     return (
@@ -375,25 +425,92 @@ function PropertyList({ zoneId, tractGeoid }: { zoneId: string; tractGeoid: stri
   }
 
   if (error) return <p style={{ color: '#dc2626', fontSize: 12, padding: '4px 0' }}>Failed to load properties</p>
-  if (!data?.has_county_adapter) return <p style={{ color: 'var(--text-tertiary)', fontSize: 12, padding: '4px 0' }}>Property data not available for this county</p>
   if (!data || data.properties.length === 0) return <p style={{ color: 'var(--text-tertiary)', fontSize: 12, padding: '4px 0' }}>No properties found</p>
+
+  const isNSI = data.source_county === 'NSI'
+
+  // Data-driven: do enough properties have addresses to enable address features?
+  const addressCount = data.properties.filter(
+    p => p.address && /^\d/.test(p.address.trim())
+  ).length
+  const hasAddresses = addressCount > data.properties.length * 0.3
+
+  // Filter out entries without a house number (e.g. vacant lots, utility parcels)
+  // When no addresses available (first NSI load), show all properties unfiltered
+  const withAddress = hasAddresses
+    ? data.properties.filter(p => p.address && /^\d/.test(p.address.trim()))
+    : data.properties
+
+  const query = search.toLowerCase().trim()
+  const filtered = query
+    ? withAddress.filter(p =>
+        (p.address ?? '').toLowerCase().includes(query) ||
+        (p.owner_name ?? '').toLowerCase().includes(query)
+      )
+    : withAddress
+  const sorted = sortProperties(filtered, sortBy)
+
+  const toggleStreet = (street: string) => {
+    setExpandedStreets(prev => {
+      const next = new Set(prev)
+      if (next.has(street)) next.delete(street)
+      else next.add(street)
+      return next
+    })
+  }
+
+  // Flat view
+  const visible = sorted.slice(0, visibleCount)
+  const hasMore = visibleCount < sorted.length
+
+  // Street-grouped view (only when addresses are available)
+  const useStreetView = groupByStreetOn && hasAddresses
+  const streetGroups = useStreetView ? groupByStreet(sorted) : []
 
   return (
     <div style={{ padding: '4px 0' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+      {/* Search */}
+      <input
+        type="text"
+        placeholder={hasAddresses ? "Search address or owner..." : "Search by property type..."}
+        value={search}
+        onChange={e => { setSearch(e.target.value); setVisibleCount(PAGE_SIZE) }}
+        style={{
+          width: '100%', padding: '6px 8px', fontSize: 12, borderRadius: 6,
+          border: '1px solid var(--border-primary)', background: 'var(--bg-secondary)',
+          color: 'var(--text-primary)', marginBottom: 6, boxSizing: 'border-box',
+          outline: 'none',
+        }}
+      />
+
+      {/* Header: count + sort + group toggle */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, flexWrap: 'wrap', gap: 4 }}>
         <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
-          {data.total} properties · {data.source_county} County
+          {query ? `${filtered.length} of ${withAddress.length}` : withAddress.length} properties · {isNSI ? 'Federal (NSI) data' : `${data.source_county} County`}
         </span>
         <div style={{ display: 'flex', gap: 4 }}>
-          {(['year_built', 'assessed_value', 'address'] as const).map(s => (
+          {hasAddresses && (
             <button
-              key={s}
-              onClick={() => setSortBy(s)}
+              onClick={() => setGroupByStreetOn(!groupByStreetOn)}
               style={{
                 fontSize: 10, padding: '2px 6px', borderRadius: 4, cursor: 'pointer',
-                border: `1px solid ${sortBy === s ? 'var(--accent-blue)' : 'var(--border-primary)'}`,
-                background: sortBy === s ? 'var(--accent-blue)' : 'transparent',
-                color: sortBy === s ? '#fff' : 'var(--text-secondary)',
+                border: `1px solid ${groupByStreetOn ? 'var(--accent-blue)' : 'var(--border-primary)'}`,
+                background: groupByStreetOn ? 'var(--accent-blue)' : 'transparent',
+                color: groupByStreetOn ? '#fff' : 'var(--text-secondary)',
+              }}
+            >
+              Street
+            </button>
+          )}
+          {(hasAddresses ? ['year_built', 'assessed_value', 'address'] as const : ['year_built', 'assessed_value'] as const).map(s => (
+            <button
+              key={s}
+              onClick={() => { setSortBy(s); setVisibleCount(PAGE_SIZE) }}
+              style={{
+                fontSize: 10, padding: '2px 6px', borderRadius: 4, cursor: 'pointer',
+                border: `1px solid ${!useStreetView && sortBy === s ? 'var(--accent-blue)' : 'var(--border-primary)'}`,
+                background: !useStreetView && sortBy === s ? 'var(--accent-blue)' : 'transparent',
+                color: !useStreetView && sortBy === s ? '#fff' : 'var(--text-secondary)',
               }}
             >
               {s === 'year_built' ? 'Age' : s === 'assessed_value' ? 'Value' : 'A-Z'}
@@ -401,11 +518,87 @@ function PropertyList({ zoneId, tractGeoid }: { zoneId: string; tractGeoid: stri
           ))}
         </div>
       </div>
-      {data.properties.map(prop => <PropertyCard key={prop.id} property={prop} />)}
-      {data.total > data.properties.length && (
-        <p style={{ fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center', padding: 4 }}>
-          Showing {data.properties.length} of {data.total}
-        </p>
+
+      {useStreetView ? (
+        /* ===== Street-grouped view ===== */
+        <>
+          {/* Column headers */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '4px 8px', marginBottom: 4,
+            fontSize: 10, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: 0.3,
+          }}>
+            <span style={{ width: 10 }} />
+            <span style={{ flex: 1 }}>Street</span>
+            <span style={{ minWidth: 40, textAlign: 'center' }}>Count</span>
+            <span style={{ minWidth: 56, textAlign: 'center' }}>Avg Age</span>
+          </div>
+          {streetGroups.map(group => {
+            const isExpanded = expandedStreets.has(group.street)
+            const ageBadge = roofAgeBadge(group.avgAge != null ? Math.round(group.avgAge) : null)
+            return (
+              <div key={group.street} style={{ marginBottom: 4 }}>
+                <button
+                  onClick={() => toggleStreet(group.street)}
+                  style={{
+                    display: 'flex', alignItems: 'center', width: '100%', gap: 6,
+                    padding: '6px 8px', border: '1px solid var(--border-primary)',
+                    borderRadius: 6, cursor: 'pointer',
+                    background: isExpanded ? 'var(--bg-tertiary)' : 'var(--bg-secondary)',
+                    textAlign: 'left',
+                  }}
+                >
+                  <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>
+                    {isExpanded ? '▾' : '▸'}
+                  </span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', flex: 1 }}>
+                    {group.street}
+                  </span>
+                  <span style={{ fontSize: 10, color: 'var(--text-tertiary)', minWidth: 40, textAlign: 'center' }}>
+                    {group.properties.length}
+                  </span>
+                  <span style={{
+                    fontSize: 10, fontWeight: 600, padding: '1px 5px', borderRadius: 4,
+                    minWidth: 56, textAlign: 'center',
+                    background: ageBadge.bg, color: ageBadge.fg,
+                  }}>
+                    {ageBadge.label}
+                  </span>
+                </button>
+                {isExpanded && (
+                  <div style={{ paddingLeft: 8, paddingTop: 4 }}>
+                    {group.properties.map(prop => <PropertyCard key={prop.id} property={prop} />)}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+          <p style={{ fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center', padding: 4 }}>
+            {streetGroups.length} streets · {sorted.length} properties
+          </p>
+        </>
+      ) : (
+        /* ===== Flat view ===== */
+        <>
+          {visible.map(prop => <PropertyCard key={prop.id} property={prop} />)}
+          {hasMore ? (
+            <button
+              onClick={() => setVisibleCount(v => v + PAGE_SIZE)}
+              style={{
+                display: 'block', width: '100%', padding: '6px 0', marginTop: 4,
+                fontSize: 11, fontWeight: 500, color: 'var(--accent-blue)',
+                background: 'none', border: '1px solid var(--border-primary)',
+                borderRadius: 6, cursor: 'pointer', textAlign: 'center',
+              }}
+            >
+              Show more ({sorted.length - visibleCount} remaining)
+            </button>
+          ) : sorted.length > PAGE_SIZE ? (
+            <p style={{ fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center', padding: 4 }}>
+              All {sorted.length} properties shown
+            </p>
+          ) : null}
+        </>
       )}
     </div>
   )
@@ -443,7 +636,7 @@ function PropertyCard({ property: p }: { property: PropertyResponse }) {
       )}
 
       {/* Row 3: Stats */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
         {p.year_built != null && <MiniStat label="Built" value={String(p.year_built)} />}
         {p.assessed_value != null && <MiniStat label="Value" value={fmtDollar(p.assessed_value)} />}
         {p.square_footage != null && <MiniStat label="SqFt" value={p.square_footage.toLocaleString()} />}

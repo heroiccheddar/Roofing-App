@@ -23,6 +23,9 @@ rasterio>=1.4                    # Raster I/O for GeoTIFF processing (zonal stat
 python-jose[cryptography]>=3.3
 bcrypt>=4.0
 
+# Security
+slowapi>=0.1.9
+
 # AWS SDK
 boto3>=1.35                      # SES email, SNS SMS, CloudWatch logging
 

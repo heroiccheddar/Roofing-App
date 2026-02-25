@@ -35,6 +35,11 @@ import type {
   RouteRequest,
   RouteResponse,
   PropertyListResponse,
+  LeadPinCreate,
+  LeadPinUpdate,
+  LeadPinResponse,
+  LeadPinListResponse,
+  PinActivityListResponse,
 } from '../types/api';
 
 // ===== Configuration =====
@@ -112,6 +117,13 @@ async function apiFetch<T>(
 
   // Handle errors
   if (!response.ok) {
+    // Expired or invalid token — log out and redirect to login
+    if (response.status === 401) {
+      clearAuthToken();
+      window.location.href = '/login';
+      throw new Error('Session expired. Please log in again.');
+    }
+
     let errorDetail = `HTTP ${response.status}: ${response.statusText}`;
     try {
       const errorBody = await response.json();
@@ -244,11 +256,9 @@ export async function getZoneTracts(
 export async function getTractProperties(
   zoneId: string,
   tractGeoid: string,
-  params?: { sort_by?: string; page?: number; page_size?: number }
 ): Promise<PropertyListResponse> {
   return apiFetch<PropertyListResponse>(
     `/api/v1/zones/${zoneId}/tracts/${tractGeoid}/properties`,
-    { params: params as Record<string, string | number | undefined> }
   );
 }
 
@@ -367,6 +377,55 @@ export async function deployModel(
     method: 'POST',
     body: JSON.stringify(request),
   });
+}
+
+// ===== Lead Pins =====
+
+export async function getLeadPins(
+  bbox?: [number, number, number, number],
+): Promise<LeadPinListResponse> {
+  const params: Record<string, string | undefined> = {};
+  if (bbox) params.bbox = bbox.join(',');
+  return apiFetch<LeadPinListResponse>('/api/v1/leads', { params });
+}
+
+export async function getLeadPinsGeoJSON(
+  bbox?: [number, number, number, number],
+  disposition?: string,
+): Promise<any> {
+  const params: Record<string, string | undefined> = {};
+  if (bbox) params.bbox = bbox.join(',');
+  if (disposition) params.disposition = disposition;
+  return apiFetch<any>('/api/v1/leads/geojson', { params });
+}
+
+export async function createLeadPin(
+  data: LeadPinCreate,
+): Promise<LeadPinResponse> {
+  return apiFetch<LeadPinResponse>('/api/v1/leads', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateLeadPin(
+  pinId: string,
+  data: LeadPinUpdate,
+): Promise<LeadPinResponse> {
+  return apiFetch<LeadPinResponse>(`/api/v1/leads/${pinId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteLeadPin(pinId: string): Promise<void> {
+  return apiFetch<void>(`/api/v1/leads/${pinId}`, { method: 'DELETE' });
+}
+
+export async function getLeadPinActivities(
+  pinId: string,
+): Promise<PinActivityListResponse> {
+  return apiFetch<PinActivityListResponse>(`/api/v1/leads/${pinId}/activities`);
 }
 
 // ===== Helper Types =====

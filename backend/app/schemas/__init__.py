@@ -21,6 +21,7 @@ from app.schemas.account import (
 # Lead zones
 from app.schemas.zones import (
     ZoneListParams,
+    FreshnessInfo,
     ZoneResponse,
     ZoneDetailResponse,
     StormEventBrief,
@@ -69,6 +70,18 @@ from app.schemas.route import RouteRequest, RouteWaypoint, RouteResponse
 # Properties
 from app.schemas.properties import PropertyResponse, PropertyListResponse
 
+# Lead pins
+from app.schemas.leads import (
+    LeadPinCreate,
+    LeadPinUpdate,
+    LeadPinResponse,
+    LeadPinListResponse,
+    PinActivityResponse,
+    PinActivityListResponse,
+    LeadPinGeoJSONFeature,
+    LeadPinGeoJSONResponse,
+)
+
 __all__ = [
     # Common
     "PaginationParams",
@@ -84,6 +97,7 @@ __all__ = [
     "AccountResponse",
     # Zones
     "ZoneListParams",
+    "FreshnessInfo",
     "ZoneResponse",
     "ZoneDetailResponse",
     "StormEventBrief",
@@ -122,4 +136,13 @@ __all__ = [
     # Properties
     "PropertyResponse",
     "PropertyListResponse",
+    # Lead pins
+    "LeadPinCreate",
+    "LeadPinUpdate",
+    "LeadPinResponse",
+    "LeadPinListResponse",
+    "PinActivityResponse",
+    "PinActivityListResponse",
+    "LeadPinGeoJSONFeature",
+    "LeadPinGeoJSONResponse",
 ]

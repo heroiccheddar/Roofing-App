@@ -23,7 +23,6 @@ drive time cost exceeds any realistic lead-quality benefit.
 """
 
 import logging
-import math
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Query
@@ -36,6 +35,7 @@ from app.database import get_db
 from app.models.lead_zone import LeadZone
 from app.models.roofer_account import RooferAccount
 from app.schemas.recommend import RecommendedZone, RecommendationResponse
+from app.utils.geo import haversine_km
 
 logger = logging.getLogger(__name__)
 
@@ -59,16 +59,6 @@ _PROXIMITY_DECAY_PER_KM = 0.98
 
 # Storm recency decay base per hour
 _STORM_DECAY_PER_HOUR = 0.98
-
-
-def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """Return great-circle distance in kilometres between two WGS84 points."""
-    r = 6371.0  # Earth mean radius in km
-    phi1, phi2 = math.radians(lat1), math.radians(lat2)
-    dphi = math.radians(lat2 - lat1)
-    dlambda = math.radians(lon2 - lon1)
-    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
-    return 2 * r * math.asin(math.sqrt(a))
 
 
 def _proximity_score(distance_km: float) -> float:
@@ -253,7 +243,7 @@ async def get_recommendations(
         centroid_lon = centroid_shape.x
 
         # Distance gate — skip zones beyond the max useful driving radius
-        distance_km = _haversine_km(lat, lon, centroid_lat, centroid_lon)
+        distance_km = haversine_km(lat, lon, centroid_lat, centroid_lon)
         if distance_km > _MAX_DISTANCE_KM:
             continue
 

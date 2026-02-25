@@ -47,10 +47,10 @@ export function useZoneTracts(zoneId: string | null) {
   })
 }
 
-export function useTractProperties(zoneId: string | null, tractGeoid: string | null, sortBy?: string) {
+export function useTractProperties(zoneId: string | null, tractGeoid: string | null) {
   return useQuery({
-    queryKey: ['tract-properties', zoneId, tractGeoid, sortBy],
-    queryFn: () => getTractProperties(zoneId!, tractGeoid!, { sort_by: sortBy, page_size: 200 }),
+    queryKey: ['tract-properties', zoneId, tractGeoid],
+    queryFn: () => getTractProperties(zoneId!, tractGeoid!),
     enabled: !!zoneId && !!tractGeoid,
     staleTime: 120_000,
   })

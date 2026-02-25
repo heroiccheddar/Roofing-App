@@ -22,10 +22,10 @@ engine = create_async_engine(
     echo=False,
     future=True,
     pool_pre_ping=True,
-    pool_size=3,
-    max_overflow=7,
+    pool_size=10,
+    max_overflow=10,
     pool_recycle=300,
-    pool_timeout=10,
+    pool_timeout=30,
 )
 
 # Create async session factory

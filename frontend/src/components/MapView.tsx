@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, useMemo } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { useZonesGeoJSON, useZoneTracts } from '../hooks/useZones'
+import { useLeadPinsGeoJSON } from '../hooks/useLeadPins'
+import { MapSpinner } from './SkeletonLoader'
 import useAppStore from '../stores/appStore'
 import { haversineKm } from '../utils/distance'
 
@@ -56,7 +58,8 @@ function MapView() {
   const [mapLoaded, setMapLoaded] = useState(false)
   const homeMarkerRef = useRef<mapboxgl.Marker | null>(null)
   const tractPopupRef = useRef<mapboxgl.Popup | null>(null)
-  const { data: geojson } = useZonesGeoJSON()
+  const isPinDropModeRef = useRef(false)
+  const { data: geojson, isLoading: geojsonLoading, error: geojsonError } = useZonesGeoJSON()
   const selectedZoneId = useAppStore((s) => s.selectedZoneId)
   const setSelectedZoneId = useAppStore((s) => s.setSelectedZoneId)
   const setMapZoom = useAppStore((s) => s.setMapZoom)
@@ -66,6 +69,10 @@ function MapView() {
   const maxDistanceMiles = useAppStore((s) => s.filters.maxDistanceMiles)
   const routeGeometry = useAppStore((s) => s.routeGeometry)
   const focusedTractId = useAppStore((s) => s.focusedTractId)
+  const isPinDropMode = useAppStore((s) => s.isPinDropMode)
+  const setSelectedLeadPinId = useAppStore((s) => s.setSelectedLeadPinId)
+  const setPendingPinLocation = useAppStore((s) => s.setPendingPinLocation)
+  const { data: leadPinsGeoJSON } = useLeadPinsGeoJSON()
   const { data: tractsGeojson } = useZoneTracts(selectedZoneId)
 
   // Filter GeoJSON features by max distance from home
@@ -254,6 +261,56 @@ function MapView() {
         },
       })
 
+      // Lead pins source (empty, updated via useEffect)
+      map.addSource('lead-pins', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      })
+
+      // Pin circles layer — colored by disposition
+      map.addLayer({
+        id: 'lead-pins-circles',
+        type: 'circle',
+        source: 'lead-pins',
+        paint: {
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 4, 12, 8, 15, 12] as any,
+          'circle-color': [
+            'match', ['get', 'disposition'],
+            'not_home',        '#94a3b8',
+            'callback',        '#3b82f6',
+            'interested',      '#f59e0b',
+            'inspection_set',  '#8b5cf6',
+            'contract_signed', '#22c55e',
+            'not_interested',  '#ef4444',
+            '#94a3b8',
+          ] as any,
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 2,
+          'circle-opacity': 0.9,
+        },
+      })
+
+      // Click handler for existing pins
+      map.on('click', 'lead-pins-circles', (e) => {
+        if (e.features && e.features.length > 0) {
+          const pinId = e.features[0].properties?.id
+          if (pinId) {
+            e.preventDefault()
+            setSelectedLeadPinId(pinId)
+          }
+        }
+      })
+
+      // Cursor changes for pins
+      map.on('mouseenter', 'lead-pins-circles', () => {
+        map.getCanvas().style.cursor = 'pointer'
+      })
+      map.on('mouseleave', 'lead-pins-circles', () => {
+        if (!isPinDropModeRef.current) {
+          map.getCanvas().style.cursor = ''
+        }
+      })
+
       // Tract hover popup
       map.on('mouseenter', 'tracts-fill', (e) => {
         map.getCanvas().style.cursor = 'crosshair'
@@ -303,23 +360,39 @@ function MapView() {
       // Set initial bounds
       updateBounds()
 
-      // Click handler for zones
-      map.on('click', 'zones-fill', (e) => {
-        if (e.features && e.features.length > 0) {
-          const feature = e.features[0]
-          const zoneId = feature.properties?.id
+      // General map click — handles pin-drop mode first, then zone selection
+      map.on('click', (e) => {
+        // Check for pin drop mode before anything else
+        if (isPinDropModeRef.current) {
+          const pinFeatures = map.queryRenderedFeatures(e.point, { layers: ['lead-pins-circles'] })
+          if (pinFeatures.length === 0) {
+            const { lng, lat } = e.lngLat
+            setPendingPinLocation({ lat, lon: lng })
+            return // Don't process zone click
+          }
+          return // Clicked an existing pin — let the lead-pins-circles handler handle it
+        }
+
+        // Fall through to zone selection
+        const zoneFeatures = map.queryRenderedFeatures(e.point, { layers: ['zones-fill'] })
+        if (zoneFeatures.length > 0) {
+          const zoneId = zoneFeatures[0].properties?.id
           if (zoneId) {
             setSelectedZoneId(zoneId)
           }
         }
       })
 
-      // Cursor change on hover
+      // Cursor change on hover for zones
       map.on('mouseenter', 'zones-fill', () => {
-        map.getCanvas().style.cursor = 'pointer'
+        if (!isPinDropModeRef.current) {
+          map.getCanvas().style.cursor = 'pointer'
+        }
       })
       map.on('mouseleave', 'zones-fill', () => {
-        map.getCanvas().style.cursor = ''
+        if (!isPinDropModeRef.current) {
+          map.getCanvas().style.cursor = ''
+        }
       })
 
       // Fit to 60-mile radius around home immediately on load
@@ -416,10 +489,19 @@ function MapView() {
     }
   }, [selectedZoneId])
 
-  // Fly to zone when selected from sidebar
+  // Fly to zone when selected from sidebar (only on actual selection change)
+  const lastFlyToZoneRef = useRef<string | null>(null)
   useEffect(() => {
     const map = mapRef.current
-    if (!map || !selectedZoneId || !geojson?.features) return
+    if (!map || !geojson?.features) return
+
+    if (!selectedZoneId) {
+      lastFlyToZoneRef.current = null
+      return
+    }
+
+    // Only fly when the selected zone actually changes
+    if (lastFlyToZoneRef.current === selectedZoneId) return
 
     const feature = geojson.features.find(
       (f: any) => f.properties?.id === selectedZoneId
@@ -434,6 +516,7 @@ function MapView() {
     const lon = ring.reduce((s, c) => s + c[0], 0) / ring.length
     const lat = ring.reduce((s, c) => s + c[1], 0) / ring.length
 
+    lastFlyToZoneRef.current = selectedZoneId
     map.flyTo({ center: [lon, lat], zoom: 11, duration: 1000 })
   }, [selectedZoneId, geojson])
 
@@ -477,6 +560,30 @@ function MapView() {
     }
   }, [routeGeometry, mapLoaded])
 
+  // Sync isPinDropMode to the ref so the map click handler can read it synchronously,
+  // and update the canvas cursor to crosshair when in pin-drop mode.
+  useEffect(() => {
+    isPinDropModeRef.current = isPinDropMode
+    const map = mapRef.current
+    if (map) {
+      map.getCanvas().style.cursor = isPinDropMode ? 'crosshair' : ''
+    }
+  }, [isPinDropMode])
+
+  // Update lead-pins GeoJSON source when data changes
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoaded) return
+    const source = map.getSource('lead-pins') as mapboxgl.GeoJSONSource | undefined
+    if (!source) return
+
+    if (leadPinsGeoJSON) {
+      source.setData(leadPinsGeoJSON)
+    } else {
+      source.setData({ type: 'FeatureCollection', features: [] })
+    }
+  }, [leadPinsGeoJSON, mapLoaded])
+
   // Show home marker
   useEffect(() => {
     const map = mapRef.current
@@ -503,7 +610,39 @@ function MapView() {
     }
   }, [homeLat, homeLon, mapLoaded])
 
-  return <div ref={mapContainer} style={{ width: '100%', height: '100%' }} />
+  const showEmpty = !geojsonLoading && !geojsonError && filteredGeojson && filteredGeojson.features.length === 0
+
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <div ref={mapContainer} style={{ width: '100%', height: '100%' }} />
+      {geojsonLoading && !geojson && <MapSpinner />}
+      {geojsonError && (
+        <div style={{
+          position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
+          justifyContent: 'center', background: 'rgba(0,0,0,0.15)', zIndex: 10,
+          pointerEvents: 'none',
+        }}>
+          <div style={{
+            background: 'var(--bg-primary)', padding: '12px 20px', borderRadius: 8,
+            color: 'var(--accent-red)', fontSize: 13, boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            pointerEvents: 'auto',
+          }}>
+            Failed to load zones
+          </div>
+        </div>
+      )}
+      {showEmpty && (
+        <div style={{
+          position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
+          background: 'var(--bg-primary)', padding: '8px 16px', borderRadius: 8,
+          color: 'var(--text-secondary)', fontSize: 13, zIndex: 10,
+          boxShadow: '0 1px 4px rgba(0,0,0,0.1)', pointerEvents: 'none',
+        }}>
+          No zones in this area. Try adjusting filters or zooming out.
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default MapView

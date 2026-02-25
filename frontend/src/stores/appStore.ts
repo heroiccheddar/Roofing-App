@@ -30,6 +30,9 @@ interface AppState {
   isOffline: boolean
   pendingQueueCount: number
   focusedTractId: string | null
+  selectedLeadPinId: string | null
+  isPinDropMode: boolean
+  pendingPinLocation: { lat: number; lon: number } | null
   setUser: (user: User | null) => void
   setToken: (token: string | null) => void
   setSelectedZoneId: (zoneId: string | null) => void
@@ -48,6 +51,9 @@ interface AppState {
   toggleZoneInRoute: (zoneId: string) => void
   clearRoute: () => void
   setFocusedTractId: (geoid: string | null) => void
+  setSelectedLeadPinId: (id: string | null) => void
+  setIsPinDropMode: (mode: boolean) => void
+  setPendingPinLocation: (loc: { lat: number; lon: number } | null) => void
   logout: () => void
 }
 
@@ -75,6 +81,9 @@ const useAppStore = create<AppState>((set) => ({
   isOffline: typeof navigator !== 'undefined' ? !navigator.onLine : false,
   pendingQueueCount: 0,
   focusedTractId: null,
+  selectedLeadPinId: null,
+  isPinDropMode: false,
+  pendingPinLocation: null,
 
   // Actions
   setUser: (user) => set({ user }),
@@ -108,11 +117,14 @@ const useAppStore = create<AppState>((set) => ({
     }),
   clearRoute: () => set({ routeZoneIds: [], routeGeometry: null }),
   setFocusedTractId: (geoid) => set({ focusedTractId: geoid }),
+  setSelectedLeadPinId: (id) => set({ selectedLeadPinId: id }),
+  setIsPinDropMode: (mode) => set({ isPinDropMode: mode }),
+  setPendingPinLocation: (loc) => set({ pendingPinLocation: loc }),
   logout: () => {
     clearAuthToken()
     sessionStorage.removeItem('roofiq_home_lat')
     sessionStorage.removeItem('roofiq_home_lon')
-    set({ user: null, token: null, selectedZoneId: null, homeLat: null, homeLon: null })
+    set({ user: null, token: null, selectedZoneId: null, homeLat: null, homeLon: null, selectedLeadPinId: null, isPinDropMode: false, pendingPinLocation: null })
   },
 }))
 

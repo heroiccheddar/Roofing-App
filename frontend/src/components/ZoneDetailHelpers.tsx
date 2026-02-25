@@ -90,6 +90,35 @@ export function SubScoreBar({ label, value, color }: { label: string; value?: nu
   )
 }
 
+const FRESHNESS_STYLES: Record<string, { bg: string; fg: string }> = {
+  fresh: { bg: '#dcfce7', fg: '#15803d' },
+  aging: { bg: '#fef9c3', fg: '#a16207' },
+  stale: { bg: '#fee2e2', fg: '#dc2626' },
+}
+
+export function FreshnessBadge({
+  status, label, compact = false,
+}: {
+  status: string; label: string; compact?: boolean
+}) {
+  const style = FRESHNESS_STYLES[status] || FRESHNESS_STYLES.stale
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 4,
+      fontSize: compact ? 10 : 11,
+      fontWeight: 600,
+      padding: compact ? '1px 6px' : '2px 8px',
+      borderRadius: 4,
+      background: style.bg,
+      color: style.fg,
+      whiteSpace: 'nowrap',
+    }}>
+      <span style={{ fontSize: compact ? 6 : 8 }}>{'\u25CF'}</span>
+      {compact ? status.charAt(0).toUpperCase() + status.slice(1) : label}
+    </span>
+  )
+}
+
 export function RiskBadge({ label, rating, info }: { label: string; rating: string; info?: string }) {
   const NRI_BG: Record<string, string> = {
     'Very High': '#fef2f2',
@@ -114,6 +143,54 @@ export function RiskBadge({ label, rating, info }: { label: string; rating: stri
     }}>
       {label}: {rating}
       {info && <InfoTip text={info} />}
+    </span>
+  )
+}
+
+// ===== Disposition Badge (Lead Pins) =====
+
+export const DISPOSITION_COLORS: Record<string, string> = {
+  not_home: '#94a3b8',
+  callback: '#3b82f6',
+  interested: '#f59e0b',
+  inspection_set: '#8b5cf6',
+  contract_signed: '#22c55e',
+  not_interested: '#ef4444',
+}
+
+export const DISPOSITION_LABELS: Record<string, string> = {
+  not_home: 'Not Home',
+  callback: 'Callback',
+  interested: 'Interested',
+  inspection_set: 'Inspection Set',
+  contract_signed: 'Contract Signed',
+  not_interested: 'Not Interested',
+}
+
+export function DispositionBadge({ disposition }: { disposition: string }) {
+  const color = DISPOSITION_COLORS[disposition] || '#94a3b8'
+  const label = DISPOSITION_LABELS[disposition] || disposition
+  return (
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '6px',
+      padding: '2px 10px',
+      borderRadius: '12px',
+      fontSize: '12px',
+      fontWeight: 600,
+      backgroundColor: `${color}20`,
+      color: color,
+      border: `1px solid ${color}40`,
+    }}>
+      <span style={{
+        width: '8px',
+        height: '8px',
+        borderRadius: '50%',
+        backgroundColor: color,
+        flexShrink: 0,
+      }} />
+      {label}
     </span>
   )
 }

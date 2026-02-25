@@ -21,9 +21,13 @@ from app.scoring.weights import (
     ScoreBand,
     ModelVersion,
     CURRENT_MODEL_VERSION,
+    V9_MODEL_VERSION,
+    ROOF_AGE_MODEL_VERSION,
+    UNIFIED_MODEL_VERSION,
     get_score_band,
     get_predicted_conversion_rate,
     get_predicted_conversion_for_band,
+    renormalize_scores,
 )
 
 
@@ -413,3 +417,166 @@ class TestGetPredictedConversionForBand:
     def test_skip_band(self):
         """Test conversion rate for SKIP band."""
         assert get_predicted_conversion_for_band(ScoreBand.SKIP) == 0.01
+
+
+class TestRenormalizeScores:
+    """Tests for renormalize_scores() sigmoid normalization."""
+
+    def test_empty_list(self):
+        assert renormalize_scores([]) == []
+
+    def test_single_element(self):
+        result = renormalize_scores([42.0])
+        assert result == [42.0]
+
+    def test_two_elements_maintains_order(self):
+        """Two scores: lower is pushed down, relative order preserved."""
+        result = renormalize_scores([30.0, 70.0])
+        assert len(result) == 2
+        assert result[0] < result[1]  # order preserved
+        assert result[0] < 30.0       # lower pushed down
+
+    def test_all_identical_returns_50(self):
+        """All identical scores → p_high == p_low → returns [50.0, ...]."""
+        result = renormalize_scores([60.0, 60.0, 60.0, 60.0])
+        assert all(s == 50.0 for s in result)
+
+    def test_preserves_order(self):
+        """Output order should match input order."""
+        raw = [20.0, 80.0, 50.0, 10.0, 90.0]
+        result = renormalize_scores(raw)
+        # The relative order should be preserved
+        assert result[3] < result[0] < result[2] < result[1] < result[4]
+
+    def test_output_in_0_100_range(self):
+        """All outputs should be within (0, 100)."""
+        raw = [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0]
+        result = renormalize_scores(raw)
+        for s in result:
+            assert 0.0 < s < 100.0
+
+    def test_extreme_outliers_stay_bounded(self):
+        """Outliers should asymptote toward 0/100 without hitting them."""
+        raw = [0.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 100.0]
+        result = renormalize_scores(raw)
+        assert result[0] > 0.0   # not exactly 0
+        assert result[-1] < 100.0  # not exactly 100
+
+    def test_normal_distribution_spreads_scores(self):
+        """A tight cluster of scores should spread to fill more of 0-100."""
+        raw = [45.0, 48.0, 50.0, 52.0, 55.0]
+        result = renormalize_scores(raw)
+        raw_range = max(raw) - min(raw)
+        norm_range = max(result) - min(result)
+        assert norm_range > raw_range  # normalization should increase spread
+
+    def test_custom_percentile_bounds(self):
+        """Custom low_pct and high_pct should still produce valid results."""
+        raw = [10.0, 30.0, 50.0, 70.0, 90.0]
+        result = renormalize_scores(raw, low_pct=5.0, high_pct=95.0)
+        assert len(result) == 5
+        for s in result:
+            assert 0.0 < s < 100.0
+
+    def test_median_stays_near_50(self):
+        """The median score should normalize to approximately 50."""
+        raw = [20.0, 40.0, 50.0, 60.0, 80.0]
+        result = renormalize_scores(raw)
+        # The median (index 2) should be near 50
+        assert math.isclose(result[2], 50.0, abs_tol=1.0)
+
+
+class TestV9ModelVersion:
+    """Tests for V9_MODEL_VERSION (current storm scoring model)."""
+
+    def test_version_string(self):
+        assert V9_MODEL_VERSION.version == "9.0.0"
+
+    def test_validate_fails_on_legacy_lead_quality_weights(self):
+        """V9 lead_quality_weights are absolute bonus caps, not proportional weights.
+        They intentionally don't sum to 1.0, so validate() raises."""
+        import pytest
+        with pytest.raises(ValueError, match="Lead quality weights"):
+            V9_MODEL_VERSION.validate()
+
+    def test_damage_weights_sum(self):
+        assert math.isclose(V9_MODEL_VERSION.damage_weights.sum(), 1.0)
+
+    def test_composite_weights_sum(self):
+        assert math.isclose(V9_MODEL_VERSION.composite_weights.sum(), 1.0)
+
+    def test_snapshot_round_trip(self):
+        snapshot = V9_MODEL_VERSION.to_snapshot()
+        restored = ModelVersion.from_snapshot(snapshot)
+        assert restored.version == V9_MODEL_VERSION.version
+        assert restored.to_snapshot() == snapshot
+
+
+class TestRoofAgeModelVersion:
+    """Tests for ROOF_AGE_MODEL_VERSION (v10)."""
+
+    def test_version_string(self):
+        assert ROOF_AGE_MODEL_VERSION.version == "10.0.0-roof-age"
+
+    def test_weights_sum(self):
+        # RoofAgeCompositeWeights has roof_age + owner_occupied + home_value + housing_density
+        # Note: only 4 weights, and they DON'T sum to 1.0 (0.25+0.12+0.08+0.06 = 0.51)
+        # because the roof_age engine uses 15 features in compute_roof_age_score, not these
+        total = ROOF_AGE_MODEL_VERSION.weights.sum()
+        assert total > 0.0
+
+    def test_snapshot_serializable(self):
+        import json
+        snapshot = ROOF_AGE_MODEL_VERSION.to_snapshot()
+        json.dumps(snapshot)
+        assert snapshot["lead_type"] == "roof_age"
+
+
+class TestUnifiedModelVersion:
+    """Tests for UNIFIED_MODEL_VERSION (v11 — the active unified model)."""
+
+    def test_version_string(self):
+        assert UNIFIED_MODEL_VERSION.version == "11.0.0"
+
+    def test_composite_weights_sum_to_1(self):
+        total = UNIFIED_MODEL_VERSION.composite_weights.sum()
+        assert math.isclose(total, 1.0)
+
+    def test_roof_condition_weights_sum_to_1(self):
+        total = UNIFIED_MODEL_VERSION.roof_condition_weights.sum()
+        assert math.isclose(total, 1.0)
+
+    def test_market_quality_weights_sum_to_1(self):
+        total = UNIFIED_MODEL_VERSION.market_quality_weights.sum()
+        assert math.isclose(total, 1.0)
+
+    def test_risk_exposure_weights_sum_to_1(self):
+        total = UNIFIED_MODEL_VERSION.risk_exposure_weights.sum()
+        assert math.isclose(total, 1.0)
+
+    def test_canvass_efficiency_weights_sum_to_1(self):
+        total = UNIFIED_MODEL_VERSION.canvass_efficiency_weights.sum()
+        assert math.isclose(total, 1.0)
+
+    def test_storm_blend_weights(self):
+        assert UNIFIED_MODEL_VERSION.base_weight_with_storm == 0.80
+        assert UNIFIED_MODEL_VERSION.storm_boost_weight == 0.20
+        assert math.isclose(
+            UNIFIED_MODEL_VERSION.base_weight_with_storm + UNIFIED_MODEL_VERSION.storm_boost_weight,
+            1.0,
+        )
+
+    def test_snapshot_serializable(self):
+        import json
+        snapshot = UNIFIED_MODEL_VERSION.to_snapshot()
+        json.dumps(snapshot)
+        assert snapshot["lead_type"] == "unified"
+        assert "roof_condition_weights" in snapshot
+        assert "composite_weights" in snapshot
+
+    def test_composite_weight_values(self):
+        cw = UNIFIED_MODEL_VERSION.composite_weights
+        assert cw.roof_condition == 0.35
+        assert cw.market_quality == 0.30
+        assert cw.risk_exposure == 0.20
+        assert cw.canvass_efficiency == 0.15

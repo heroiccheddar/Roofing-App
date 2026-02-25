@@ -35,8 +35,6 @@ class PropertyResponse(BaseModel):
 class PropertyListResponse(BaseModel):
     properties: list[PropertyResponse]
     total: int
-    page: int
-    page_size: int
     tract_geoid: str
     source_county: Optional[str] = None
     data_freshness: Optional[str] = None

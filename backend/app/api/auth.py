@@ -6,8 +6,10 @@ Handles user registration, login, JWT token generation, and password reset.
 from datetime import datetime, timedelta
 
 import bcrypt
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from jose import jwt
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy import select, cast
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func
@@ -19,6 +21,7 @@ from app.models.roofer_account import RooferAccount
 from app.schemas.auth import AuthRegister, AuthLogin, TokenResponse
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
+limiter = Limiter(key_func=get_remote_address)
 
 
 def hash_password(password: str) -> str:
@@ -53,7 +56,9 @@ def create_access_token(user_id: str) -> str:
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("3/minute")
 async def register(
+    request: Request,
     data: AuthRegister,
     db: AsyncSession = Depends(get_db),
 ) -> TokenResponse:
@@ -123,7 +128,9 @@ async def register(
 
 
 @router.post("/login", response_model=TokenResponse)
+@limiter.limit("5/minute")
 async def login(
+    request: Request,
     data: AuthLogin,
     db: AsyncSession = Depends(get_db),
 ) -> TokenResponse:

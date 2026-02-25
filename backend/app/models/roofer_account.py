@@ -70,6 +70,8 @@ class RooferAccount(Base):
     )
     alert_logs = relationship("AlertLog", back_populates="roofer_account", lazy="select")
     zone_feedbacks = relationship("ZoneFeedback", back_populates="roofer_account", lazy="select")
+    lead_pins = relationship("LeadPin", back_populates="roofer_account", lazy="select")
+    pin_activities = relationship("PinActivity", back_populates="roofer_account", lazy="select")
 
     __table_args__ = (
         # Spatial index on service_area (GIST)

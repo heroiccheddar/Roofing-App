@@ -13,6 +13,7 @@ from app.models.roofer_account import RooferAccount
 from app.models.alert_log import AlertLog
 from app.models.zone_feedback import ZoneFeedback
 from app.models.property import Property
+from app.models.lead_pin import LeadPin, PinActivity
 
 __all__ = [
     "StormEvent",
@@ -24,4 +25,6 @@ __all__ = [
     "AlertLog",
     "ZoneFeedback",
     "Property",
+    "LeadPin",
+    "PinActivity",
 ]

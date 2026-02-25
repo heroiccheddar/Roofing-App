@@ -88,6 +88,12 @@ export interface StormEventBrief {
   radar_confidence?: number;
 }
 
+export interface FreshnessInfo {
+  status: 'fresh' | 'aging' | 'stale';
+  age_days: number;
+  label: string;
+}
+
 export interface ZoneResponse {
   id: string;
   h3_index: string;
@@ -131,6 +137,9 @@ export interface ZoneResponse {
   storm_boost?: number;
   base_score?: number;
   has_active_storm?: boolean;
+
+  // Freshness
+  freshness?: FreshnessInfo;
 }
 
 export interface ScoreFactor {
@@ -416,10 +425,65 @@ export interface PropertyResponse {
 export interface PropertyListResponse {
   properties: PropertyResponse[];
   total: number;
-  page: number;
-  page_size: number;
   tract_geoid: string;
   source_county?: string;
   data_freshness?: string;
   has_county_adapter: boolean;
+}
+
+// ===== Lead Pins =====
+
+export type LeadPinDisposition =
+  | 'not_home'
+  | 'callback'
+  | 'interested'
+  | 'inspection_set'
+  | 'contract_signed'
+  | 'not_interested';
+
+export interface LeadPinCreate {
+  lat: number;
+  lon: number;
+  address?: string;
+  disposition: LeadPinDisposition;
+  notes?: string;
+  property_id?: string;
+  lead_zone_id?: string;
+}
+
+export interface LeadPinUpdate {
+  disposition?: LeadPinDisposition;
+  notes?: string;
+}
+
+export interface LeadPinResponse {
+  id: string;
+  roofer_account_id: string;
+  property_id?: string;
+  lead_zone_id?: string;
+  lat: number;
+  lon: number;
+  address?: string;
+  disposition: LeadPinDisposition;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LeadPinListResponse {
+  pins: LeadPinResponse[];
+  total: number;
+}
+
+export interface PinActivityResponse {
+  id: string;
+  lead_pin_id: string;
+  disposition: LeadPinDisposition;
+  notes?: string;
+  created_at: string;
+}
+
+export interface PinActivityListResponse {
+  activities: PinActivityResponse[];
+  total: number;
 }
