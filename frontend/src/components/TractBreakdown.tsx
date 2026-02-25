@@ -544,12 +544,14 @@ function PropertyList({ zoneId, tractGeoid }: { zoneId: string; tractGeoid: stri
           }}>
             <span style={{ width: 10 }} />
             <span style={{ flex: 1 }}>Street</span>
-            <span style={{ minWidth: 40, textAlign: 'center' }}>Count</span>
+            <span style={{ minWidth: 28, textAlign: 'center' }}>Props</span>
+            <span style={{ minWidth: 28, textAlign: 'center' }}>Pinned</span>
             <span style={{ minWidth: 56, textAlign: 'center' }}>Avg Age</span>
           </div>
           {streetGroups.map(group => {
             const isExpanded = expandedStreets.has(group.street)
             const ageBadge = roofAgeBadge(group.avgAge != null ? Math.round(group.avgAge) : null)
+            const pinnedCount = group.properties.filter(prop => pinByPropertyId.has(prop.id)).length
             return (
               <div key={group.street} style={{ marginBottom: 4 }}>
                 <button
@@ -568,8 +570,14 @@ function PropertyList({ zoneId, tractGeoid }: { zoneId: string; tractGeoid: stri
                   <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', flex: 1 }}>
                     {group.street}
                   </span>
-                  <span style={{ fontSize: 10, color: 'var(--text-tertiary)', minWidth: 40, textAlign: 'center' }}>
+                  <span style={{ fontSize: 10, color: 'var(--text-tertiary)', minWidth: 28, textAlign: 'center' }}>
                     {group.properties.length}
+                  </span>
+                  <span style={{
+                    fontSize: 10, fontWeight: 600, minWidth: 28, textAlign: 'center',
+                    color: pinnedCount > 0 ? '#8b5cf6' : 'var(--text-tertiary)',
+                  }}>
+                    {pinnedCount || '-'}
                   </span>
                   <span style={{
                     fontSize: 10, fontWeight: 600, padding: '1px 5px', borderRadius: 4,
