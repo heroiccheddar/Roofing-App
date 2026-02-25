@@ -567,7 +567,7 @@ function PropertyList({ zoneId, tractGeoid }: { zoneId: string; tractGeoid: stri
                 </button>
                 {isExpanded && (
                   <div style={{ paddingLeft: 8, paddingTop: 4 }}>
-                    {group.properties.map(prop => <PropertyCard key={prop.id} property={prop} />)}
+                    {group.properties.map(prop => <PropertyCard key={prop.id} property={prop} zoneId={zoneId} />)}
                   </div>
                 )}
               </div>
@@ -580,7 +580,7 @@ function PropertyList({ zoneId, tractGeoid }: { zoneId: string; tractGeoid: stri
       ) : (
         /* ===== Flat view ===== */
         <>
-          {visible.map(prop => <PropertyCard key={prop.id} property={prop} />)}
+          {visible.map(prop => <PropertyCard key={prop.id} property={prop} zoneId={zoneId} />)}
           {hasMore ? (
             <button
               onClick={() => setVisibleCount(v => v + PAGE_SIZE)}
@@ -604,8 +604,10 @@ function PropertyList({ zoneId, tractGeoid }: { zoneId: string; tractGeoid: stri
   )
 }
 
-function PropertyCard({ property: p }: { property: PropertyResponse }) {
+function PropertyCard({ property: p, zoneId }: { property: PropertyResponse; zoneId: string }) {
   const badge = roofAgeBadge(p.estimated_roof_age)
+  const setPendingPinLocation = useAppStore((s) => s.setPendingPinLocation)
+  const hasCoords = p.latitude != null && p.longitude != null
   return (
     <div style={{
       background: 'var(--bg-secondary)', borderRadius: 6, padding: '8px 10px', marginBottom: 4,
@@ -615,13 +617,36 @@ function PropertyCard({ property: p }: { property: PropertyResponse }) {
           ? '3px solid #ea580c'
           : '3px solid var(--border-primary)',
     }}>
-      {/* Row 1: Address + roof age badge */}
+      {/* Row 1: Address + pin button + roof age badge */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', flex: 1 }}>
           {p.address || 'No address'}
         </span>
+        {hasCoords && (
+          <button
+            onClick={() => setPendingPinLocation({
+              lat: p.latitude!, lon: p.longitude!,
+              address: p.address ?? undefined,
+              property_id: p.id,
+              lead_zone_id: zoneId,
+            })}
+            title="Create lead pin for this property"
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 24, height: 24, borderRadius: 6, marginLeft: 6,
+              border: '1px solid var(--border-primary)', background: 'transparent',
+              cursor: 'pointer', flexShrink: 0, fontSize: 13,
+              color: 'var(--text-secondary)',
+            }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
+              <circle cx="12" cy="10" r="3"/>
+            </svg>
+          </button>
+        )}
         <span style={{
-          fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 4, marginLeft: 8,
+          fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 4, marginLeft: 6,
           background: badge.bg, color: badge.fg, whiteSpace: 'nowrap',
         }}>
           {badge.label}

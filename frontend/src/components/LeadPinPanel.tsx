@@ -466,6 +466,9 @@ function LeadPinPanel() {
         lon: pendingPinLocation.lon,
         disposition,
         notes: notes || undefined,
+        address: pendingPinLocation.address,
+        property_id: pendingPinLocation.property_id,
+        lead_zone_id: pendingPinLocation.lead_zone_id,
       },
       {
         onSuccess: () => {

@@ -32,7 +32,7 @@ interface AppState {
   focusedTractId: string | null
   selectedLeadPinId: string | null
   isPinDropMode: boolean
-  pendingPinLocation: { lat: number; lon: number } | null
+  pendingPinLocation: { lat: number; lon: number; address?: string; property_id?: string; lead_zone_id?: string } | null
   setUser: (user: User | null) => void
   setToken: (token: string | null) => void
   setSelectedZoneId: (zoneId: string | null) => void
@@ -53,7 +53,7 @@ interface AppState {
   setFocusedTractId: (geoid: string | null) => void
   setSelectedLeadPinId: (id: string | null) => void
   setIsPinDropMode: (mode: boolean) => void
-  setPendingPinLocation: (loc: { lat: number; lon: number } | null) => void
+  setPendingPinLocation: (loc: { lat: number; lon: number; address?: string; property_id?: string; lead_zone_id?: string } | null) => void
   logout: () => void
 }
 
