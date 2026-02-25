@@ -11,7 +11,7 @@
 
 import { useState } from 'react'
 import useAppStore from '../stores/appStore'
-import { useLeadPins, useCreateLeadPin, useUpdateLeadPin, useDeleteLeadPin, useLeadPinActivities } from '../hooks/useLeadPins'
+import { useLeadPins, useUpdateLeadPin, useDeleteLeadPin, useLeadPinActivities } from '../hooks/useLeadPins'
 import { DispositionBadge, DISPOSITION_COLORS, DISPOSITION_LABELS } from './ZoneDetailHelpers'
 import type { LeadPinDisposition, LeadPinResponse } from '../types/api'
 
@@ -49,7 +49,7 @@ interface DispositionPickerProps {
   isLoading?: boolean
 }
 
-function DispositionPicker({
+export function DispositionPicker({
   initialDisposition,
   initialNotes = '',
   title,
@@ -439,13 +439,10 @@ function LeadPinPanel() {
   const darkMode = useAppStore((s) => s.darkMode)
   const isPinDropMode = useAppStore((s) => s.isPinDropMode)
   const setIsPinDropMode = useAppStore((s) => s.setIsPinDropMode)
-  const pendingPinLocation = useAppStore((s) => s.pendingPinLocation)
-  const setPendingPinLocation = useAppStore((s) => s.setPendingPinLocation)
   const selectedLeadPinId = useAppStore((s) => s.selectedLeadPinId)
   const setSelectedLeadPinId = useAppStore((s) => s.setSelectedLeadPinId)
 
   const { data: pinsData, isLoading: pinsLoading } = useLeadPins()
-  const createPin = useCreateLeadPin()
 
   const textPrimary = darkMode ? '#f1f5f9' : '#0f172a'
   const textSecondary = darkMode ? '#94a3b8' : '#64748b'
@@ -458,42 +455,8 @@ function LeadPinPanel() {
     ? pinsData?.pins.find((p) => p.id === selectedLeadPinId) ?? null
     : null
 
-  const handleCreatePin = (disposition: LeadPinDisposition, notes: string) => {
-    if (!pendingPinLocation) return
-    createPin.mutate(
-      {
-        lat: pendingPinLocation.lat,
-        lon: pendingPinLocation.lon,
-        disposition,
-        notes: notes || undefined,
-        address: pendingPinLocation.address,
-        property_id: pendingPinLocation.property_id,
-        lead_zone_id: pendingPinLocation.lead_zone_id,
-      },
-      {
-        onSuccess: () => {
-          setPendingPinLocation(null)
-          setIsPinDropMode(false)
-        },
-      },
-    )
-  }
-
-  const handleCancelCreate = () => {
-    setPendingPinLocation(null)
-  }
-
   return (
     <div style={{ padding: 16 }}>
-      {/* New-pin disposition picker (appears over the map) */}
-      {pendingPinLocation && (
-        <DispositionPicker
-          title="New Lead Pin"
-          onConfirm={handleCreatePin}
-          onCancel={handleCancelCreate}
-          isLoading={createPin.isPending}
-        />
-      )}
 
       {/* Pin detail view */}
       {selectedLeadPinId && selectedPin && (
