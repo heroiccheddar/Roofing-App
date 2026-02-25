@@ -617,36 +617,13 @@ function PropertyCard({ property: p, zoneId }: { property: PropertyResponse; zon
           ? '3px solid #ea580c'
           : '3px solid var(--border-primary)',
     }}>
-      {/* Row 1: Address + pin button + roof age badge */}
+      {/* Row 1: Address + roof age badge */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', flex: 1 }}>
           {p.address || 'No address'}
         </span>
-        {hasCoords && (
-          <button
-            onClick={() => setPendingPinLocation({
-              lat: p.latitude!, lon: p.longitude!,
-              address: p.address ?? undefined,
-              property_id: p.id,
-              lead_zone_id: zoneId,
-            })}
-            title="Create lead pin for this property"
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: 24, height: 24, borderRadius: 6, marginLeft: 6,
-              border: '1px solid var(--border-primary)', background: 'transparent',
-              cursor: 'pointer', flexShrink: 0, fontSize: 13,
-              color: 'var(--text-secondary)',
-            }}
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
-              <circle cx="12" cy="10" r="3"/>
-            </svg>
-          </button>
-        )}
         <span style={{
-          fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 4, marginLeft: 6,
+          fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 4, marginLeft: 8,
           background: badge.bg, color: badge.fg, whiteSpace: 'nowrap',
         }}>
           {badge.label}
@@ -677,6 +654,31 @@ function PropertyCard({ property: p, zoneId }: { property: PropertyResponse; zon
           Last sale: {p.last_sale_price != null ? fmtDollar(p.last_sale_price) : ''}
           {p.last_sale_date ? ` on ${p.last_sale_date}` : ''}
         </div>
+      )}
+
+      {/* Row 5: Pin action */}
+      {hasCoords && (
+        <button
+          onClick={() => setPendingPinLocation({
+            lat: p.latitude!, lon: p.longitude!,
+            address: p.address ?? undefined,
+            property_id: p.id,
+            lead_zone_id: zoneId,
+          })}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 5,
+            marginTop: 6, padding: '4px 10px',
+            borderRadius: 6, border: '1px solid #8b5cf6',
+            background: '#8b5cf610', cursor: 'pointer',
+            fontSize: 11, fontWeight: 600, color: '#8b5cf6',
+          }}
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
+            <circle cx="12" cy="10" r="3"/>
+          </svg>
+          Pin Lead
+        </button>
       )}
     </div>
   )
