@@ -7,10 +7,11 @@
 import { useState, useMemo } from 'react'
 import useAppStore from '../stores/appStore'
 import { useZoneTracts, useTractProperties } from '../hooks/useZones'
-import { useLeadPins, useDeleteLeadPin } from '../hooks/useLeadPins'
+import { useLeadPins, useDeleteLeadPin, useUpdateLeadPin } from '../hooks/useLeadPins'
 import { DispositionBadge } from './ZoneDetailHelpers'
+import { DispositionPicker } from './LeadPinPanel'
 import { ZoneCardSkeleton } from './SkeletonLoader'
-import type { PropertyResponse, LeadPinResponse } from '../types/api'
+import type { PropertyResponse, LeadPinResponse, LeadPinDisposition } from '../types/api'
 
 interface TractProperties {
   geoid: string
@@ -621,6 +622,8 @@ function PropertyCard({ property: p, zoneId, pin }: { property: PropertyResponse
   const badge = roofAgeBadge(p.estimated_roof_age)
   const setPendingPinLocation = useAppStore((s) => s.setPendingPinLocation)
   const deletePin = useDeleteLeadPin()
+  const updatePin = useUpdateLeadPin()
+  const [editing, setEditing] = useState(false)
   const hasCoords = p.latitude != null && p.longitude != null
   return (
     <div style={{
@@ -674,7 +677,13 @@ function PropertyCard({ property: p, zoneId, pin }: { property: PropertyResponse
       {hasCoords && (
         pin ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
-            <DispositionBadge disposition={pin.disposition} />
+            <button
+              onClick={() => setEditing(true)}
+              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+              title="Click to update status"
+            >
+              <DispositionBadge disposition={pin.disposition} />
+            </button>
             <button
               onClick={() => deletePin.mutate(pin.id)}
               disabled={deletePin.isPending}
@@ -716,6 +725,23 @@ function PropertyCard({ property: p, zoneId, pin }: { property: PropertyResponse
             Pin Lead
           </button>
         )
+      )}
+
+      {/* Update disposition modal */}
+      {editing && pin && (
+        <DispositionPicker
+          title="Update Status"
+          initialDisposition={pin.disposition as LeadPinDisposition}
+          initialNotes={pin.notes ?? ''}
+          onConfirm={(disposition, notes) => {
+            updatePin.mutate(
+              { pinId: pin.id, data: { disposition, notes: notes || undefined } },
+              { onSuccess: () => setEditing(false) },
+            )
+          }}
+          onCancel={() => setEditing(false)}
+          isLoading={updatePin.isPending}
+        />
       )}
     </div>
   )
