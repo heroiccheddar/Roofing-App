@@ -4,11 +4,13 @@
  * Fetches tract GeoJSON for a zone and renders each tract as a card with
  * demographics, building data, risk exposure, and market intelligence.
  */
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import useAppStore from '../stores/appStore'
 import { useZoneTracts, useTractProperties } from '../hooks/useZones'
+import { useLeadPins, useDeleteLeadPin } from '../hooks/useLeadPins'
+import { DispositionBadge } from './ZoneDetailHelpers'
 import { ZoneCardSkeleton } from './SkeletonLoader'
-import type { PropertyResponse } from '../types/api'
+import type { PropertyResponse, LeadPinResponse } from '../types/api'
 
 interface TractProperties {
   geoid: string
@@ -412,6 +414,17 @@ function PropertyList({ zoneId, tractGeoid }: { zoneId: string; tractGeoid: stri
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const [expandedStreets, setExpandedStreets] = useState<Set<string>>(new Set())
   const { data, isLoading, error } = useTractProperties(zoneId, tractGeoid)
+  const { data: pinsData } = useLeadPins()
+
+  const pinByPropertyId = useMemo(() => {
+    const map = new Map<string, LeadPinResponse>()
+    if (pinsData?.pins) {
+      for (const pin of pinsData.pins) {
+        if (pin.property_id) map.set(pin.property_id, pin)
+      }
+    }
+    return map
+  }, [pinsData])
 
   if (isLoading) {
     return (
@@ -567,7 +580,7 @@ function PropertyList({ zoneId, tractGeoid }: { zoneId: string; tractGeoid: stri
                 </button>
                 {isExpanded && (
                   <div style={{ paddingLeft: 8, paddingTop: 4 }}>
-                    {group.properties.map(prop => <PropertyCard key={prop.id} property={prop} zoneId={zoneId} />)}
+                    {group.properties.map(prop => <PropertyCard key={prop.id} property={prop} zoneId={zoneId} pin={pinByPropertyId.get(prop.id) ?? null} />)}
                   </div>
                 )}
               </div>
@@ -580,7 +593,7 @@ function PropertyList({ zoneId, tractGeoid }: { zoneId: string; tractGeoid: stri
       ) : (
         /* ===== Flat view ===== */
         <>
-          {visible.map(prop => <PropertyCard key={prop.id} property={prop} zoneId={zoneId} />)}
+          {visible.map(prop => <PropertyCard key={prop.id} property={prop} zoneId={zoneId} pin={pinByPropertyId.get(prop.id) ?? null} />)}
           {hasMore ? (
             <button
               onClick={() => setVisibleCount(v => v + PAGE_SIZE)}
@@ -604,9 +617,10 @@ function PropertyList({ zoneId, tractGeoid }: { zoneId: string; tractGeoid: stri
   )
 }
 
-function PropertyCard({ property: p, zoneId }: { property: PropertyResponse; zoneId: string }) {
+function PropertyCard({ property: p, zoneId, pin }: { property: PropertyResponse; zoneId: string; pin: LeadPinResponse | null }) {
   const badge = roofAgeBadge(p.estimated_roof_age)
   const setPendingPinLocation = useAppStore((s) => s.setPendingPinLocation)
+  const deletePin = useDeleteLeadPin()
   const hasCoords = p.latitude != null && p.longitude != null
   return (
     <div style={{
@@ -656,29 +670,52 @@ function PropertyCard({ property: p, zoneId }: { property: PropertyResponse; zon
         </div>
       )}
 
-      {/* Row 5: Pin action */}
+      {/* Row 5: Pin status + action */}
       {hasCoords && (
-        <button
-          onClick={() => setPendingPinLocation({
-            lat: p.latitude!, lon: p.longitude!,
-            address: p.address ?? undefined,
-            property_id: p.id,
-            lead_zone_id: zoneId,
-          })}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 5,
-            marginTop: 6, padding: '4px 10px',
-            borderRadius: 6, border: '1px solid #8b5cf6',
-            background: '#8b5cf610', cursor: 'pointer',
-            fontSize: 11, fontWeight: 600, color: '#8b5cf6',
-          }}
-        >
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
-            <circle cx="12" cy="10" r="3"/>
-          </svg>
-          Pin Lead
-        </button>
+        pin ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+            <DispositionBadge disposition={pin.disposition} />
+            <button
+              onClick={() => deletePin.mutate(pin.id)}
+              disabled={deletePin.isPending}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                padding: '3px 8px', borderRadius: 5,
+                border: '1px solid #ef4444', background: '#ef444410',
+                cursor: deletePin.isPending ? 'wait' : 'pointer',
+                fontSize: 10, fontWeight: 600, color: '#ef4444',
+                opacity: deletePin.isPending ? 0.5 : 1,
+              }}
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+              Unpin
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setPendingPinLocation({
+              lat: p.latitude!, lon: p.longitude!,
+              address: p.address ?? undefined,
+              property_id: p.id,
+              lead_zone_id: zoneId,
+            })}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 5,
+              marginTop: 6, padding: '4px 10px',
+              borderRadius: 6, border: '1px solid #8b5cf6',
+              background: '#8b5cf610', cursor: 'pointer',
+              fontSize: 11, fontWeight: 600, color: '#8b5cf6',
+            }}
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
+              <circle cx="12" cy="10" r="3"/>
+            </svg>
+            Pin Lead
+          </button>
+        )
       )}
     </div>
   )
