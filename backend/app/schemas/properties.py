@@ -39,3 +39,33 @@ class PropertyListResponse(BaseModel):
     source_county: Optional[str] = None
     data_freshness: Optional[str] = None
     has_county_adapter: bool
+
+
+# ---------------------------------------------------------------------------
+# GeoJSON schemas (lightweight — for canvass map layer rendering)
+# ---------------------------------------------------------------------------
+
+
+class PropertyGeoJSONProperties(BaseModel):
+    """Minimal properties included in each GeoJSON feature."""
+
+    id: str
+    address: Optional[str] = None
+    disposition: Optional[str] = None
+    estimated_roof_age: Optional[int] = None
+    year_built: Optional[int] = None
+
+
+class PropertyGeoJSONFeature(BaseModel):
+    """GeoJSON Point feature for a single property parcel."""
+
+    type: str = "Feature"
+    geometry: dict
+    properties: PropertyGeoJSONProperties
+
+
+class PropertyGeoJSONResponse(BaseModel):
+    """GeoJSON FeatureCollection of property points for canvass map rendering."""
+
+    type: str = "FeatureCollection"
+    features: list[PropertyGeoJSONFeature] = []

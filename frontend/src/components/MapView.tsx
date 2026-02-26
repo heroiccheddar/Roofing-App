@@ -3,6 +3,7 @@ import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { useZonesGeoJSON, useZoneTracts } from '../hooks/useZones'
 import { useLeadPinsGeoJSON } from '../hooks/useLeadPins'
+import { usePropertyPointsGeoJSON } from '../hooks/usePropertyPoints'
 import { MapSpinner } from './SkeletonLoader'
 import useAppStore from '../stores/appStore'
 import { haversineKm } from '../utils/distance'
@@ -73,6 +74,7 @@ function MapView() {
   const setSelectedLeadPinId = useAppStore((s) => s.setSelectedLeadPinId)
   const setPendingPinLocation = useAppStore((s) => s.setPendingPinLocation)
   const { data: leadPinsGeoJSON } = useLeadPinsGeoJSON()
+  const { data: propertyPointsGeoJSON } = usePropertyPointsGeoJSON()
   const { data: tractsGeojson } = useZoneTracts(selectedZoneId)
 
   // Filter GeoJSON features by max distance from home
@@ -261,6 +263,35 @@ function MapView() {
         },
       })
 
+      // Property points (canvass overlay, zoom >= 13)
+      map.addSource('property-points', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      })
+
+      map.addLayer({
+        id: 'property-circles',
+        type: 'circle',
+        source: 'property-points',
+        minzoom: 13,
+        paint: {
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 13, 3, 15, 6, 18, 9] as any,
+          'circle-color': [
+            'match', ['get', 'disposition'],
+            'not_home',        '#94a3b8',
+            'callback',        '#3b82f6',
+            'interested',      '#f59e0b',
+            'inspection_set',  '#8b5cf6',
+            'contract_signed', '#22c55e',
+            'not_interested',  '#ef4444',
+            '#d1d5db',  // default: light gray for unvisited
+          ] as any,
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 1,
+          'circle-opacity': 0.75,
+        },
+      })
+
       // Lead pins source (empty, updated via useEffect)
       map.addSource('lead-pins', {
         type: 'geojson',
@@ -309,6 +340,32 @@ function MapView() {
         if (!isPinDropModeRef.current) {
           map.getCanvas().style.cursor = ''
         }
+      })
+
+      // Click handler for property circles (canvass overlay)
+      map.on('click', 'property-circles', (e) => {
+        if (isPinDropModeRef.current) return
+        if (e.features && e.features.length > 0) {
+          const props = e.features[0].properties
+          if (props?.disposition) return  // already pinned, don't open creation
+          const coords = (e.features[0].geometry as any).coordinates
+          if (coords) {
+            e.preventDefault()
+            setPendingPinLocation({
+              lat: coords[1],
+              lon: coords[0],
+              address: props?.address || undefined,
+              property_id: props?.id || undefined,
+            })
+          }
+        }
+      })
+
+      map.on('mouseenter', 'property-circles', () => {
+        if (!isPinDropModeRef.current) map.getCanvas().style.cursor = 'pointer'
+      })
+      map.on('mouseleave', 'property-circles', () => {
+        if (!isPinDropModeRef.current) map.getCanvas().style.cursor = ''
       })
 
       // Tract hover popup
@@ -583,6 +640,20 @@ function MapView() {
       source.setData({ type: 'FeatureCollection', features: [] })
     }
   }, [leadPinsGeoJSON, mapLoaded])
+
+  // Update property-points GeoJSON source when data changes
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoaded) return
+    const source = map.getSource('property-points') as mapboxgl.GeoJSONSource | undefined
+    if (!source) return
+
+    if (propertyPointsGeoJSON) {
+      source.setData(propertyPointsGeoJSON)
+    } else {
+      source.setData({ type: 'FeatureCollection', features: [] })
+    }
+  }, [propertyPointsGeoJSON, mapLoaded])
 
   // Show home marker
   useEffect(() => {

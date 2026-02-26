@@ -35,6 +35,7 @@ export function useCreateLeadPin() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['lead-pins'] })
       queryClient.invalidateQueries({ queryKey: ['lead-pins-geojson'] })
+      queryClient.invalidateQueries({ queryKey: ['property-points-geojson'] })
     },
   })
 }
@@ -48,6 +49,7 @@ export function useUpdateLeadPin() {
       queryClient.invalidateQueries({ queryKey: ['lead-pins'] })
       queryClient.invalidateQueries({ queryKey: ['lead-pins-geojson'] })
       queryClient.invalidateQueries({ queryKey: ['lead-pin-activities'] })
+      queryClient.invalidateQueries({ queryKey: ['property-points-geojson'] })
     },
   })
 }
@@ -59,6 +61,7 @@ export function useDeleteLeadPin() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['lead-pins'] })
       queryClient.invalidateQueries({ queryKey: ['lead-pins-geojson'] })
+      queryClient.invalidateQueries({ queryKey: ['property-points-geojson'] })
     },
   })
 }

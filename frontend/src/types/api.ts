@@ -487,3 +487,24 @@ export interface PinActivityListResponse {
   activities: PinActivityResponse[];
   total: number;
 }
+
+// ===== Property GeoJSON (Map Layer) =====
+
+export interface PropertyGeoJSONProperties {
+  id: string;
+  address: string | null;
+  disposition: LeadPinDisposition | null;
+  estimated_roof_age: number | null;
+  year_built: number | null;
+}
+
+export interface PropertyGeoJSONFeature {
+  type: 'Feature';
+  geometry: { type: 'Point'; coordinates: [number, number] };
+  properties: PropertyGeoJSONProperties;
+}
+
+export interface PropertyGeoJSONResponse {
+  type: 'FeatureCollection';
+  features: PropertyGeoJSONFeature[];
+}
