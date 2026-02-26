@@ -6,8 +6,9 @@ import {
   updateLeadPin,
   deleteLeadPin,
   getLeadPinActivities,
+  createLeadPinActivity,
 } from '../api/client'
-import type { LeadPinCreate, LeadPinUpdate } from '../types/api'
+import type { LeadPinCreate, LeadPinUpdate, PinActivityCreate } from '../types/api'
 import useAppStore from '../stores/appStore'
 
 export function useLeadPins() {
@@ -62,6 +63,17 @@ export function useDeleteLeadPin() {
       queryClient.invalidateQueries({ queryKey: ['lead-pins'] })
       queryClient.invalidateQueries({ queryKey: ['lead-pins-geojson'] })
       queryClient.invalidateQueries({ queryKey: ['property-points-geojson'] })
+    },
+  })
+}
+
+export function useCreatePinActivity() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ pinId, data }: { pinId: string; data: PinActivityCreate }) =>
+      createLeadPinActivity(pinId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['lead-pin-activities'] })
     },
   })
 }

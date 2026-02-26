@@ -26,6 +26,7 @@ from app.schemas.leads import (
     LeadPinListResponse,
     LeadPinResponse,
     LeadPinUpdate,
+    PinActivityCreate,
     PinActivityListResponse,
     PinActivityResponse,
     VALID_DISPOSITIONS,
@@ -399,4 +400,65 @@ async def get_pin_activities(
             for a in activities
         ],
         total=len(activities),
+    )
+
+
+@router.post(
+    "/{pin_id}/activities",
+    response_model=PinActivityResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_pin_activity(
+    pin_id: UUID,
+    body: PinActivityCreate,
+    current_user: RooferAccount = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PinActivityResponse:
+    """Log a visit note on a lead pin without changing its disposition.
+
+    Creates a PinActivity entry with the pin's current disposition and the
+    provided notes. This lets reps record door-knock outcomes without
+    needing to update the sales funnel status.
+
+    Args:
+        pin_id: UUID of the pin to log activity on.
+        body: Activity data (notes field required).
+        current_user: Authenticated roofer account.
+        db: Database session.
+
+    Returns:
+        The newly created PinActivityResponse.
+
+    Raises:
+        404: Pin not found or does not belong to the current user.
+    """
+    stmt = select(LeadPin).where(
+        LeadPin.id == pin_id,
+        LeadPin.roofer_account_id == current_user.id,
+    )
+    result = await db.execute(stmt)
+    pin = result.scalar_one_or_none()
+
+    if pin is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Lead pin not found",
+        )
+
+    activity = PinActivity(
+        lead_pin_id=pin.id,
+        roofer_account_id=current_user.id,
+        disposition=pin.disposition,
+        notes=body.notes,
+    )
+    db.add(activity)
+    await db.commit()
+    await db.refresh(activity)
+
+    return PinActivityResponse(
+        id=activity.id,
+        lead_pin_id=activity.lead_pin_id,
+        disposition=activity.disposition,
+        notes=activity.notes,
+        created_at=activity.created_at,
     )

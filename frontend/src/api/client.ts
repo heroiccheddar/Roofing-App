@@ -39,6 +39,8 @@ import type {
   LeadPinUpdate,
   LeadPinResponse,
   LeadPinListResponse,
+  PinActivityCreate,
+  PinActivityResponse,
   PinActivityListResponse,
   PropertyGeoJSONResponse,
 } from '../types/api';
@@ -427,6 +429,16 @@ export async function getLeadPinActivities(
   pinId: string,
 ): Promise<PinActivityListResponse> {
   return apiFetch<PinActivityListResponse>(`/api/v1/leads/${pinId}/activities`);
+}
+
+export async function createLeadPinActivity(
+  pinId: string,
+  data: PinActivityCreate,
+): Promise<PinActivityResponse> {
+  return apiFetch<PinActivityResponse>(`/api/v1/leads/${pinId}/activities`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
 }
 
 // ===== Properties GeoJSON =====

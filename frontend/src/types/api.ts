@@ -475,6 +475,10 @@ export interface LeadPinListResponse {
   total: number;
 }
 
+export interface PinActivityCreate {
+  notes: string;
+}
+
 export interface PinActivityResponse {
   id: string;
   lead_pin_id: string;

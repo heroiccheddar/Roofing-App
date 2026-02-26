@@ -77,6 +77,12 @@ class LeadPinUpdate(BaseModel):
         return v
 
 
+class PinActivityCreate(BaseModel):
+    """Body for POST /leads/{pin_id}/activities — log a visit note."""
+
+    notes: str = Field(..., min_length=1, max_length=1000, description="Visit note")
+
+
 # ---------------------------------------------------------------------------
 # Response schemas
 # ---------------------------------------------------------------------------

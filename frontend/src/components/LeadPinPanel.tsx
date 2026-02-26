@@ -11,7 +11,7 @@
 
 import { useState } from 'react'
 import useAppStore from '../stores/appStore'
-import { useLeadPins, useUpdateLeadPin, useDeleteLeadPin, useLeadPinActivities } from '../hooks/useLeadPins'
+import { useLeadPins, useUpdateLeadPin, useDeleteLeadPin, useLeadPinActivities, useCreatePinActivity } from '../hooks/useLeadPins'
 import { DispositionBadge, DISPOSITION_COLORS, DISPOSITION_LABELS } from './ZoneDetailHelpers'
 import type { LeadPinDisposition, LeadPinResponse } from '../types/api'
 
@@ -219,8 +219,11 @@ function PinDetail({ pin, onBack }: PinDetailProps) {
   const { data: activitiesData, isLoading: activitiesLoading } = useLeadPinActivities(pin.id)
   const updatePin = useUpdateLeadPin()
   const deletePin = useDeleteLeadPin()
+  const createActivity = useCreatePinActivity()
   const [showUpdatePicker, setShowUpdatePicker] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [showLogNote, setShowLogNote] = useState(false)
+  const [noteText, setNoteText] = useState('')
 
   const handleUpdate = (disposition: LeadPinDisposition, notes: string) => {
     updatePin.mutate(
@@ -239,6 +242,19 @@ function PinDetail({ pin, onBack }: PinDetailProps) {
         setSelectedLeadPinId(null)
       },
     })
+  }
+
+  const handleLogNote = () => {
+    if (!noteText.trim()) return
+    createActivity.mutate(
+      { pinId: pin.id, data: { notes: noteText.trim() } },
+      {
+        onSuccess: () => {
+          setNoteText('')
+          setShowLogNote(false)
+        },
+      },
+    )
   }
 
   const textPrimary = darkMode ? '#f1f5f9' : '#0f172a'
@@ -380,6 +396,86 @@ function PinDetail({ pin, onBack }: PinDetailProps) {
         >
           Cancel delete
         </button>
+      )}
+
+      {/* Log Note */}
+      {!showLogNote ? (
+        <button
+          onClick={() => setShowLogNote(true)}
+          style={{
+            width: '100%',
+            padding: '8px 0',
+            borderRadius: 8,
+            border: '1px solid #16a34a',
+            background: 'transparent',
+            color: '#16a34a',
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: 'pointer',
+            marginBottom: 16,
+          }}
+        >
+          Log Note
+        </button>
+      ) : (
+        <div style={{ marginBottom: 16 }}>
+          <textarea
+            value={noteText}
+            onChange={(e) => setNoteText(e.target.value)}
+            placeholder="Add a note about this visit..."
+            maxLength={1000}
+            style={{
+              width: '100%',
+              minHeight: 72,
+              padding: 10,
+              borderRadius: 8,
+              border: `1px solid ${borderColor}`,
+              background: darkMode ? '#0f172a' : '#ffffff',
+              color: darkMode ? '#f1f5f9' : '#0f172a',
+              fontSize: 13,
+              lineHeight: '1.5',
+              resize: 'vertical',
+              boxSizing: 'border-box',
+              marginBottom: 8,
+            }}
+            autoFocus
+          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={handleLogNote}
+              disabled={!noteText.trim() || createActivity.isPending}
+              style={{
+                flex: 1,
+                padding: '7px 0',
+                borderRadius: 8,
+                border: 'none',
+                background: '#16a34a',
+                color: '#ffffff',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: !noteText.trim() || createActivity.isPending ? 'not-allowed' : 'pointer',
+                opacity: !noteText.trim() || createActivity.isPending ? 0.5 : 1,
+              }}
+            >
+              {createActivity.isPending ? 'Saving...' : 'Save Note'}
+            </button>
+            <button
+              onClick={() => { setShowLogNote(false); setNoteText('') }}
+              style={{
+                flex: 1,
+                padding: '7px 0',
+                borderRadius: 8,
+                border: `1px solid ${borderColor}`,
+                background: 'transparent',
+                color: textSecondary,
+                fontSize: 13,
+                cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Activity timeline */}
