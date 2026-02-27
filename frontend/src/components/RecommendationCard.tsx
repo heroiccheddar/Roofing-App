@@ -238,7 +238,7 @@ function RecommendationCard() {
                     {/* Middle row: recommendation score + "Add to Route" */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                       <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-                        Score: <strong style={{ color: 'var(--text-primary)' }}>{(zone.recommendation_score * 100).toFixed(0)}%</strong>
+                        Score: <strong style={{ color: 'var(--text-primary)' }}>{zone.recommendation_score.toFixed(0)}%</strong>
                       </span>
                       <button
                         onClick={(e) => {
