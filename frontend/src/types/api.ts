@@ -545,3 +545,28 @@ export interface PropertyGeoJSONResponse {
   type: 'FeatureCollection';
   features: PropertyGeoJSONFeature[];
 }
+
+// ===== Leaderboard & Metrics =====
+
+export type LeaderboardPeriod = 'this_week' | 'this_month' | 'all_time'
+
+export interface LeaderboardMember {
+  roofer_account_id: string
+  company_name: string
+  email: string
+  total_pins: number
+  not_home: number
+  callback: number
+  interested: number
+  inspection_set: number
+  contract_signed: number
+  not_interested: number
+  conversion_rate: number
+}
+
+export interface LeaderboardResponse {
+  current_user_id: string
+  period: LeaderboardPeriod
+  period_start: string | null
+  members: LeaderboardMember[]
+}

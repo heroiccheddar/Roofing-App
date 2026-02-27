@@ -6,6 +6,7 @@ import RoutePanel from '../components/RoutePanel'
 import ErrorBoundary from '../components/ErrorBoundary'
 import FollowUpQueue from '../components/FollowUpQueue'
 import TeamPanel from '../components/TeamPanel'
+import LeaderboardPanel from '../components/LeaderboardPanel'
 import useAppStore from '../stores/appStore'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { useDarkMode } from '../hooks/useDarkMode'
@@ -341,6 +342,13 @@ function Dashboard() {
           <div style={{ flexShrink: 0 }}>
             <ErrorBoundary>
               <TeamPanel />
+            </ErrorBoundary>
+          </div>
+
+          {/* Leaderboard panel */}
+          <div style={{ flexShrink: 0 }}>
+            <ErrorBoundary>
+              <LeaderboardPanel />
             </ErrorBoundary>
           </div>
 

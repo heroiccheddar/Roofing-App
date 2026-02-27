@@ -47,6 +47,8 @@ import type {
   OrgJoin,
   OrgResponse,
   OrgDetailResponse,
+  LeaderboardPeriod,
+  LeaderboardResponse,
 } from '../types/api';
 
 // ===== Configuration =====
@@ -487,6 +489,16 @@ export async function getPropertiesGeoJSON(
   return apiFetch<PropertyGeoJSONResponse>('/api/v1/properties/geojson', {
     params: { bbox: bbox.join(',') },
   });
+}
+
+// ===== Leaderboard & Metrics =====
+
+export async function getLeaderboard(
+  period?: LeaderboardPeriod,
+): Promise<LeaderboardResponse> {
+  return apiFetch<LeaderboardResponse>('/api/v1/metrics/leaderboard', {
+    params: { period },
+  })
 }
 
 // ===== Helper Types =====
