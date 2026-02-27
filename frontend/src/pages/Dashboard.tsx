@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import MapView from '../components/MapView'
 import ZonePanel from '../components/ZonePanel'
 import RecommendationCard from '../components/RecommendationCard'
@@ -21,9 +21,22 @@ function Dashboard() {
   const isMobile = useMediaQuery('(max-width: 767px)')
   const [mobileTab, setMobileTab] = useState<MobileTab>('map')
 
+  const selectedLeadPinId = useAppStore((s) => s.selectedLeadPinId)
+
   const { darkMode, toggleDarkMode } = useDarkMode()
   const { isOnline, pendingCount } = useOfflineQueue()
   const { needsUpdate, update: updateSW } = useServiceWorker()
+
+  // Auto-switch to zones tab when a pin is tapped on the map (mobile only)
+  useEffect(() => {
+    if (isMobile && selectedLeadPinId && mobileTab === 'map') {
+      setMobileTab('zones')
+      // Scroll the pin panel into view after the tab switch renders
+      requestAnimationFrame(() => {
+        document.getElementById('lead-pin-panel')?.scrollIntoView({ behavior: 'smooth' })
+      })
+    }
+  }, [isMobile, selectedLeadPinId, mobileTab])
 
   if (isMobile) {
     return (

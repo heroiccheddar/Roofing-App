@@ -493,7 +493,7 @@ function ZonePanel({ isMobile = false }: { isMobile?: boolean }) {
         </div>
 
         {/* Lead Pins — visible in detail view too */}
-        <div style={{
+        <div id="lead-pin-panel" style={{
           borderTop: '1px solid var(--border-primary)',
           marginTop: 12,
         }}>
@@ -720,7 +720,7 @@ function ZonePanel({ isMobile = false }: { isMobile?: boolean }) {
       </div>
 
       {/* Lead Pins section — always visible in the list view */}
-      <div style={{
+      <div id="lead-pin-panel" style={{
         borderTop: '1px solid var(--border-primary)',
         marginTop: 8,
         flexShrink: 0,
