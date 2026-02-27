@@ -570,3 +570,21 @@ export interface LeaderboardResponse {
   period_start: string | null
   members: LeaderboardMember[]
 }
+
+// ===== Pin Photos =====
+
+export interface PinPhotoResponse {
+  id: string
+  lead_pin_id: string
+  roofer_account_id: string
+  url: string
+  original_filename: string
+  file_size_bytes: number
+  content_type: string
+  created_at: string
+}
+
+export interface PinPhotoListResponse {
+  photos: PinPhotoResponse[]
+  count: number
+}

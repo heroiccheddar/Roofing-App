@@ -49,6 +49,8 @@ import type {
   OrgDetailResponse,
   LeaderboardPeriod,
   LeaderboardResponse,
+  PinPhotoResponse,
+  PinPhotoListResponse,
 } from '../types/api';
 
 // ===== Configuration =====
@@ -499,6 +501,52 @@ export async function getLeaderboard(
   return apiFetch<LeaderboardResponse>('/api/v1/metrics/leaderboard', {
     params: { period },
   })
+}
+
+// ===== Pin Photos =====
+
+export async function getPinPhotos(pinId: string): Promise<PinPhotoListResponse> {
+  return apiFetch<PinPhotoListResponse>(`/api/v1/photos/${pinId}`)
+}
+
+export async function uploadPinPhoto(pinId: string, file: File): Promise<PinPhotoResponse> {
+  // Must use raw fetch — apiFetch sets Content-Type: application/json which
+  // would prevent the browser from setting the correct multipart boundary.
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const headers: Record<string, string> = {}
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`
+  }
+
+  const res = await fetch(`${API_BASE}/api/v1/photos/${pinId}`, {
+    method: 'POST',
+    headers,
+    body: formData,
+  })
+
+  if (!res.ok) {
+    if (res.status === 401) {
+      clearAuthToken()
+      window.location.href = '/login'
+      throw new Error('Session expired')
+    }
+    let detail = `Upload failed (${res.status})`
+    try {
+      const body = await res.json()
+      if (typeof body.detail === 'string') detail = body.detail
+    } catch {
+      // Failed to parse error body — use default message
+    }
+    throw new Error(detail)
+  }
+
+  return res.json()
+}
+
+export async function deletePinPhoto(photoId: string): Promise<void> {
+  return apiFetch<void>(`/api/v1/photos/${photoId}`, { method: 'DELETE' })
 }
 
 // ===== Helper Types =====

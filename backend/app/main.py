@@ -25,6 +25,7 @@ from app.api.leads import router as leads_router
 from app.api.properties import router as properties_router
 from app.api.org import router as org_router
 from app.api.metrics import router as metrics_router
+from app.api.photos import router as photos_router
 from app.scheduler.jobs import (
     job_poll_nws,
     job_scrape_spc,
@@ -128,7 +129,7 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Permissions-Policy"] = "camera=(self), microphone=(), geolocation=()"
     return response
 
 
@@ -145,6 +146,7 @@ app.include_router(leads_router, prefix="/api/v1")
 app.include_router(properties_router, prefix="/api/v1")
 app.include_router(org_router, prefix="/api/v1")
 app.include_router(metrics_router, prefix="/api/v1")
+app.include_router(photos_router, prefix="/api/v1")
 
 
 @app.get("/health")

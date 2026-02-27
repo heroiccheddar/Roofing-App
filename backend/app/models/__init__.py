@@ -15,6 +15,7 @@ from app.models.zone_feedback import ZoneFeedback
 from app.models.property import Property
 from app.models.lead_pin import LeadPin, PinActivity
 from app.models.organization import Organization
+from app.models.pin_photo import PinPhoto
 
 __all__ = [
     "StormEvent",
@@ -29,4 +30,5 @@ __all__ = [
     "LeadPin",
     "PinActivity",
     "Organization",
+    "PinPhoto",
 ]

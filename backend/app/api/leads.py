@@ -17,7 +17,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.database import get_db
 from app.models.lead_pin import LeadPin, PinActivity
+from app.models.pin_photo import PinPhoto
 from app.models.roofer_account import RooferAccount
+from app.services.s3_photos import delete_photos_batch
 from app.schemas.leads import (
     LeadPinCreate,
     LeadPinGeoJSONFeature,
@@ -450,6 +452,16 @@ async def delete_lead_pin(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Lead pin not found",
         )
+
+    # Clean up S3 photos before deleting pin (DB rows cascade-delete via FK)
+    photo_stmt = select(PinPhoto.s3_key).where(PinPhoto.lead_pin_id == pin_id)
+    photo_result = await db.execute(photo_stmt)
+    s3_keys = [row[0] for row in photo_result.all()]
+    if s3_keys:
+        try:
+            delete_photos_batch(s3_keys)
+        except Exception:
+            logger.warning("Failed to delete S3 photos for pin %s", pin_id)
 
     await db.delete(pin)
     await db.commit()

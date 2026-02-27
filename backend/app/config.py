@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     # AWS SNS SMS
     SNS_REGION: str = "us-east-1"
 
+    # AWS S3 Photo Storage
+    S3_PHOTO_BUCKET: str = ""
+    S3_PHOTO_REGION: str = "us-east-1"
+
     # Census API (required for ingestion, optional for API-only startup)
     CENSUS_API_KEY: str = ""
 

@@ -13,6 +13,7 @@ import { useState } from 'react'
 import useAppStore from '../stores/appStore'
 import { useLeadPins, useUpdateLeadPin, useDeleteLeadPin, useLeadPinActivities, useCreatePinActivity } from '../hooks/useLeadPins'
 import { DispositionBadge, DISPOSITION_COLORS, DISPOSITION_LABELS } from './ZoneDetailHelpers'
+import PhotoGallery from './PhotoGallery'
 import type { LeadPinDisposition, LeadPinResponse } from '../types/api'
 
 // ===== Helpers =====
@@ -516,6 +517,9 @@ function PinDetail({ pin, onBack }: PinDetailProps) {
           )}
         </>
       )}
+
+      {/* Photos */}
+      <PhotoGallery pinId={pin.id} isOwner={!isTeamPin} />
 
       {/* Activity timeline */}
       <div style={{ fontSize: 13, fontWeight: 600, color: textSecondary, marginBottom: 8 }}>
