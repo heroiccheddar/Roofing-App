@@ -257,7 +257,7 @@ function RecommendationCard() {
                           minHeight: 28,
                         }}
                       >
-                        {inRoute ? '&#10003; Route' : '+ Route'}
+                        {inRoute ? '\u2713 Route' : '+ Route'}
                       </button>
                     </div>
 
