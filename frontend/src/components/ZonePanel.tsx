@@ -15,6 +15,7 @@ function ZonePanel({ isMobile = false }: { isMobile?: boolean }) {
   const navigate = useNavigate()
   const selectedZoneId = useAppStore((s) => s.selectedZoneId)
   const setSelectedZoneId = useAppStore((s) => s.setSelectedZoneId)
+  const selectedLeadPinId = useAppStore((s) => s.selectedLeadPinId)
   const minScore = useAppStore((s) => s.filters.minScore)
   const maxDistanceMiles = useAppStore((s) => s.filters.maxDistanceMiles)
   const leadType = useAppStore((s) => s.filters.leadType)
@@ -83,6 +84,15 @@ function ZonePanel({ isMobile = false }: { isMobile?: boolean }) {
   const showStormSection = detail
     ? (detail.has_active_storm === true || detail.lead_type === 'storm_boosted' || detail.event_count > 0)
     : false
+
+  // On mobile, when a lead pin is selected, show only the pin detail panel
+  if (isMobile && selectedLeadPinId) {
+    return (
+      <div style={{ ...styles.panel, height: '100%', overflowY: 'auto' }}>
+        <LeadPinPanel />
+      </div>
+    )
+  }
 
   // Show skeleton while zone detail is loading
   if (selectedZoneId && !detail && detailLoading) {
