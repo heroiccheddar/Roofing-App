@@ -43,6 +43,10 @@ import type {
   PinActivityResponse,
   PinActivityListResponse,
   PropertyGeoJSONResponse,
+  OrgCreate,
+  OrgJoin,
+  OrgResponse,
+  OrgDetailResponse,
 } from '../types/api';
 
 // ===== Configuration =====
@@ -386,23 +390,29 @@ export async function deployModel(
 
 export async function getLeadPins(
   bbox?: [number, number, number, number],
+  team?: boolean,
 ): Promise<LeadPinListResponse> {
   const params: Record<string, string | undefined> = {};
   if (bbox) params.bbox = bbox.join(',');
+  if (team) params.team = 'true';
   return apiFetch<LeadPinListResponse>('/api/v1/leads', { params });
 }
 
-export async function getLeadPinCallbacks(): Promise<LeadPinListResponse> {
-  return apiFetch<LeadPinListResponse>('/api/v1/leads/callbacks');
+export async function getLeadPinCallbacks(team?: boolean): Promise<LeadPinListResponse> {
+  const params: Record<string, string | undefined> = {};
+  if (team) params.team = 'true';
+  return apiFetch<LeadPinListResponse>('/api/v1/leads/callbacks', { params });
 }
 
 export async function getLeadPinsGeoJSON(
   bbox?: [number, number, number, number],
   disposition?: string,
+  team?: boolean,
 ): Promise<any> {
   const params: Record<string, string | undefined> = {};
   if (bbox) params.bbox = bbox.join(',');
   if (disposition) params.disposition = disposition;
+  if (team) params.team = 'true';
   return apiFetch<any>('/api/v1/leads/geojson', { params });
 }
 
@@ -443,6 +453,30 @@ export async function createLeadPinActivity(
     method: 'POST',
     body: JSON.stringify(data),
   });
+}
+
+// ===== Organization =====
+
+export async function createOrg(data: OrgCreate): Promise<OrgResponse> {
+  return apiFetch<OrgResponse>('/api/v1/org', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getOrg(): Promise<OrgDetailResponse> {
+  return apiFetch<OrgDetailResponse>('/api/v1/org');
+}
+
+export async function joinOrg(data: OrgJoin): Promise<OrgResponse> {
+  return apiFetch<OrgResponse>('/api/v1/org/join', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function leaveOrg(): Promise<{ detail: string }> {
+  return apiFetch<{ detail: string }>('/api/v1/org/leave', { method: 'POST' });
 }
 
 // ===== Properties GeoJSON =====

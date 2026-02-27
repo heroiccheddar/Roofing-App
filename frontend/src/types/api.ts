@@ -469,6 +469,7 @@ export interface LeadPinResponse {
   disposition: LeadPinDisposition;
   notes?: string;
   callback_date?: string;
+  roofer_name?: string;
   created_at: string;
   updated_at: string;
 }
@@ -493,6 +494,35 @@ export interface PinActivityResponse {
 export interface PinActivityListResponse {
   activities: PinActivityResponse[];
   total: number;
+}
+
+// ===== Organization =====
+
+export interface OrgCreate {
+  name: string;
+}
+
+export interface OrgJoin {
+  invite_code: string;
+}
+
+export interface OrgMember {
+  id: string;
+  email: string;
+  company_name: string;
+  org_role: 'owner' | 'member';
+}
+
+export interface OrgResponse {
+  id: string;
+  name: string;
+  invite_code: string;
+  created_by: string;
+  created_at: string;
+}
+
+export interface OrgDetailResponse extends OrgResponse {
+  members: OrgMember[];
 }
 
 // ===== Property GeoJSON (Map Layer) =====

@@ -14,6 +14,7 @@ from app.models.alert_log import AlertLog
 from app.models.zone_feedback import ZoneFeedback
 from app.models.property import Property
 from app.models.lead_pin import LeadPin, PinActivity
+from app.models.organization import Organization
 
 __all__ = [
     "StormEvent",
@@ -27,4 +28,5 @@ __all__ = [
     "Property",
     "LeadPin",
     "PinActivity",
+    "Organization",
 ]

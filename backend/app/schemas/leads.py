@@ -111,6 +111,7 @@ class LeadPinResponse(BaseModel):
 
     created_at: datetime = Field(..., description="Pin creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
+    roofer_name: str | None = Field(None, description="Rep name (team queries only)")
 
 
 class LeadPinListResponse(BaseModel):
@@ -151,6 +152,7 @@ class LeadPinGeoJSONProperties(BaseModel):
 
     id: str = Field(..., description="Pin UUID as string")
     disposition: str = Field(..., description="Current sales funnel status")
+    is_own: bool = Field(True, description="Whether this pin belongs to the current user")
 
 
 class LeadPinGeoJSONFeature(BaseModel):

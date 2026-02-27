@@ -42,7 +42,7 @@ router = APIRouter(prefix="/leads", tags=["lead-pins"])
 # ---------------------------------------------------------------------------
 
 
-def _pin_to_response(pin: LeadPin) -> LeadPinResponse:
+def _pin_to_response(pin: LeadPin, roofer_name: str | None = None) -> LeadPinResponse:
     """Convert a LeadPin ORM object to a LeadPinResponse schema.
 
     Extracts lat/lon from the PostGIS POINT geometry so the response
@@ -62,6 +62,7 @@ def _pin_to_response(pin: LeadPin) -> LeadPinResponse:
         callback_date=pin.callback_date,
         created_at=pin.created_at,
         updated_at=pin.updated_at,
+        roofer_name=roofer_name,
     )
 
 
@@ -81,6 +82,19 @@ def _parse_bbox(bbox: str) -> tuple[float, float, float, float] | None:
         return None
 
 
+async def _get_team_member_ids(
+    current_user: RooferAccount, db: AsyncSession
+) -> list[UUID] | None:
+    """Return all org member IDs if user is in an org, else None."""
+    if current_user.organization_id is None:
+        return None
+    stmt = select(RooferAccount.id).where(
+        RooferAccount.organization_id == current_user.organization_id
+    )
+    result = await db.execute(stmt)
+    return [row[0] for row in result.all()]
+
+
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -92,6 +106,7 @@ async def list_lead_pins(
         None,
         description="Viewport bounding box as 'west,south,east,north'",
     ),
+    team: bool = Query(False, description="Include team members' pins"),
     current_user: RooferAccount = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> LeadPinListResponse:
@@ -100,15 +115,27 @@ async def list_lead_pins(
     Args:
         bbox: Optional 'west,south,east,north' string to restrict results
               to a map viewport.
+        team: If True and user is in an org, include all org members' pins.
         current_user: Authenticated roofer account.
         db: Database session.
 
     Returns:
         LeadPinListResponse with pins and total count.
     """
-    stmt = select(LeadPin).where(
-        LeadPin.roofer_account_id == current_user.id
-    )
+    member_ids: list[UUID] | None = None
+    if team:
+        member_ids = await _get_team_member_ids(current_user, db)
+
+    if team and member_ids is not None:
+        stmt = (
+            select(LeadPin, RooferAccount.company_name)
+            .outerjoin(RooferAccount, LeadPin.roofer_account_id == RooferAccount.id)
+            .where(LeadPin.roofer_account_id.in_(member_ids))
+        )
+    else:
+        stmt = select(LeadPin, RooferAccount.company_name).outerjoin(
+            RooferAccount, LeadPin.roofer_account_id == RooferAccount.id
+        ).where(LeadPin.roofer_account_id == current_user.id)
 
     if bbox:
         coords = _parse_bbox(bbox)
@@ -124,11 +151,16 @@ async def list_lead_pins(
     stmt = stmt.order_by(LeadPin.created_at.desc())
 
     result = await db.execute(stmt)
-    pins = result.scalars().all()
+    rows = result.all()
+
+    pins_out = []
+    for pin, company_name in rows:
+        name = company_name if (team and pin.roofer_account_id != current_user.id) else None
+        pins_out.append(_pin_to_response(pin, roofer_name=name))
 
     return LeadPinListResponse(
-        pins=[_pin_to_response(p) for p in pins],
-        total=len(pins),
+        pins=pins_out,
+        total=len(pins_out),
     )
 
 
@@ -142,28 +174,36 @@ async def get_lead_pins_geojson(
         None,
         description="Filter by disposition value",
     ),
+    team: bool = Query(False),
     current_user: RooferAccount = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> LeadPinGeoJSONResponse:
     """Return user's lead pins as a GeoJSON FeatureCollection for map rendering.
 
-    Only fetches id, location, and disposition — no joins, no heavy columns.
+    Only fetches id, location, disposition, and roofer_account_id — no heavy columns.
     This endpoint is optimised for map tile rendering at any zoom level.
 
     Args:
         bbox: Optional 'west,south,east,north' viewport filter.
         disposition: Optional disposition filter.
+        team: If True and user is in an org, include all org members' pins.
         current_user: Authenticated roofer account.
         db: Database session.
 
     Returns:
         GeoJSON FeatureCollection with Point features.
     """
+    member_ids: list[UUID] | None = None
+    if team:
+        member_ids = await _get_team_member_ids(current_user, db)
+
     # Lightweight: only select the columns we need for the map
-    stmt = (
-        select(LeadPin.id, LeadPin.location, LeadPin.disposition)
-        .where(LeadPin.roofer_account_id == current_user.id)
-    )
+    stmt = select(LeadPin.id, LeadPin.location, LeadPin.disposition, LeadPin.roofer_account_id)
+
+    if team and member_ids is not None:
+        stmt = stmt.where(LeadPin.roofer_account_id.in_(member_ids))
+    else:
+        stmt = stmt.where(LeadPin.roofer_account_id == current_user.id)
 
     if bbox:
         coords = _parse_bbox(bbox)
@@ -188,7 +228,7 @@ async def get_lead_pins_geojson(
     rows = result.all()
 
     features = []
-    for pin_id, location, disp in rows:
+    for pin_id, location, disp, pin_owner_id in rows:
         pt = to_shape(location)
         feature = LeadPinGeoJSONFeature(
             type="Feature",
@@ -199,6 +239,7 @@ async def get_lead_pins_geojson(
             properties=LeadPinGeoJSONProperties(
                 id=str(pin_id),
                 disposition=disp,
+                is_own=(pin_owner_id == current_user.id),
             ),
         )
         features.append(feature)
@@ -256,6 +297,7 @@ async def create_lead_pin(
 
 @router.get("/callbacks", response_model=LeadPinListResponse)
 async def get_lead_pin_callbacks(
+    team: bool = Query(False),
     current_user: RooferAccount = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> LeadPinListResponse:
@@ -263,24 +305,54 @@ async def get_lead_pin_callbacks(
 
     Includes pins with disposition='callback' or any pin with a callback_date set.
     Sorted by callback_date ASC (overdue first) with nulls last.
+
+    Args:
+        team: If True and user is in an org, include all org members' callback pins.
+        current_user: Authenticated roofer account.
+        db: Database session.
     """
-    stmt = (
-        select(LeadPin)
-        .where(
-            LeadPin.roofer_account_id == current_user.id,
-            or_(
-                LeadPin.disposition == "callback",
-                LeadPin.callback_date.isnot(None),
-            ),
+    member_ids: list[UUID] | None = None
+    if team:
+        member_ids = await _get_team_member_ids(current_user, db)
+
+    if team and member_ids is not None:
+        stmt = (
+            select(LeadPin, RooferAccount.company_name)
+            .outerjoin(RooferAccount, LeadPin.roofer_account_id == RooferAccount.id)
+            .where(
+                LeadPin.roofer_account_id.in_(member_ids),
+                or_(
+                    LeadPin.disposition == "callback",
+                    LeadPin.callback_date.isnot(None),
+                ),
+            )
+            .order_by(LeadPin.callback_date.asc().nullslast(), LeadPin.updated_at.desc())
         )
-        .order_by(LeadPin.callback_date.asc().nullslast(), LeadPin.updated_at.desc())
-    )
+    else:
+        stmt = (
+            select(LeadPin, RooferAccount.company_name)
+            .outerjoin(RooferAccount, LeadPin.roofer_account_id == RooferAccount.id)
+            .where(
+                LeadPin.roofer_account_id == current_user.id,
+                or_(
+                    LeadPin.disposition == "callback",
+                    LeadPin.callback_date.isnot(None),
+                ),
+            )
+            .order_by(LeadPin.callback_date.asc().nullslast(), LeadPin.updated_at.desc())
+        )
+
     result = await db.execute(stmt)
-    pins = result.scalars().all()
+    rows = result.all()
+
+    pins_out = []
+    for pin, company_name in rows:
+        name = company_name if (team and pin.roofer_account_id != current_user.id) else None
+        pins_out.append(_pin_to_response(pin, roofer_name=name))
 
     return LeadPinListResponse(
-        pins=[_pin_to_response(p) for p in pins],
-        total=len(pins),
+        pins=pins_out,
+        total=len(pins_out),
     )
 
 

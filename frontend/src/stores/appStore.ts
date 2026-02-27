@@ -34,6 +34,8 @@ interface AppState {
   isPinDropMode: boolean
   pendingPinLocation: { lat: number; lon: number; address?: string; property_id?: string; lead_zone_id?: string } | null
   flyToCoords: { lat: number; lon: number; zoom?: number } | null
+  showTeamPins: boolean
+  setShowTeamPins: (show: boolean) => void
   setUser: (user: User | null) => void
   setToken: (token: string | null) => void
   setSelectedZoneId: (zoneId: string | null) => void
@@ -87,6 +89,7 @@ const useAppStore = create<AppState>((set) => ({
   isPinDropMode: false,
   pendingPinLocation: null,
   flyToCoords: null,
+  showTeamPins: false,
 
   // Actions
   setUser: (user) => set({ user }),
@@ -124,6 +127,7 @@ const useAppStore = create<AppState>((set) => ({
   setIsPinDropMode: (mode) => set({ isPinDropMode: mode }),
   setPendingPinLocation: (loc) => set({ pendingPinLocation: loc }),
   setFlyToCoords: (coords) => set({ flyToCoords: coords }),
+  setShowTeamPins: (show) => set({ showTeamPins: show }),
   logout: () => {
     clearAuthToken()
     sessionStorage.removeItem('roofiq_home_lat')

@@ -169,6 +169,11 @@ export default function FollowUpQueue() {
                     <div style={{ fontSize: 11, color, fontWeight: 600, marginTop: 2 }}>
                       {text}
                     </div>
+                    {pin.roofer_name && (
+                      <div style={{ fontSize: 11, color: textSecondary, marginTop: 1 }}>
+                        by {pin.roofer_name}
+                      </div>
+                    )}
                   </div>
                   <DispositionBadge disposition={pin.disposition} />
                 </button>

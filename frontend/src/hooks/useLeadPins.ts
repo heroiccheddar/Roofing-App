@@ -14,26 +14,29 @@ import useAppStore from '../stores/appStore'
 
 export function useLeadPins() {
   const mapBounds = useAppStore((s) => s.mapBounds)
+  const showTeamPins = useAppStore((s) => s.showTeamPins)
   return useQuery({
-    queryKey: ['lead-pins', mapBounds],
-    queryFn: () => getLeadPins(mapBounds ?? undefined),
+    queryKey: ['lead-pins', mapBounds, showTeamPins],
+    queryFn: () => getLeadPins(mapBounds ?? undefined, showTeamPins || undefined),
     staleTime: 30_000,
   })
 }
 
 export function useLeadPinsGeoJSON(disposition?: string) {
   const mapBounds = useAppStore((s) => s.mapBounds)
+  const showTeamPins = useAppStore((s) => s.showTeamPins)
   return useQuery({
-    queryKey: ['lead-pins-geojson', mapBounds, disposition],
-    queryFn: () => getLeadPinsGeoJSON(mapBounds ?? undefined, disposition),
+    queryKey: ['lead-pins-geojson', mapBounds, disposition, showTeamPins],
+    queryFn: () => getLeadPinsGeoJSON(mapBounds ?? undefined, disposition, showTeamPins || undefined),
     staleTime: 30_000,
   })
 }
 
 export function useLeadPinCallbacks() {
+  const showTeamPins = useAppStore((s) => s.showTeamPins)
   return useQuery({
-    queryKey: ['lead-pin-callbacks'],
-    queryFn: () => getLeadPinCallbacks(),
+    queryKey: ['lead-pin-callbacks', showTeamPins],
+    queryFn: () => getLeadPinCallbacks(showTeamPins || undefined),
     staleTime: 60_000,
   })
 }

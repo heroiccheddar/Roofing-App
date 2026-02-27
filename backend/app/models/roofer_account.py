@@ -12,6 +12,7 @@ from sqlalchemy import (
     String,
     DateTime,
     Boolean,
+    ForeignKey,
     Index,
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
@@ -52,6 +53,14 @@ class RooferAccount(Base):
     is_admin = Column(Boolean, nullable=False, default=False)
     is_active = Column(Boolean, nullable=False, default=True)
 
+    # Organization membership
+    organization_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id"),
+        nullable=True,
+    )
+    org_role = Column(String, nullable=True)  # 'owner' | 'member'
+
     # Activity tracking
     last_login_at = Column(DateTime(timezone=True), nullable=True)
 
@@ -72,6 +81,9 @@ class RooferAccount(Base):
     zone_feedbacks = relationship("ZoneFeedback", back_populates="roofer_account", lazy="select")
     lead_pins = relationship("LeadPin", back_populates="roofer_account", lazy="select")
     pin_activities = relationship("PinActivity", back_populates="roofer_account", lazy="select")
+    organization = relationship(
+        "Organization", back_populates="members", foreign_keys=[organization_id]
+    )
 
     __table_args__ = (
         # Spatial index on service_area (GIST)
@@ -80,6 +92,8 @@ class RooferAccount(Base):
         Index('ix_roofer_accounts_subscription_tier', 'subscription_tier'),
         # Index on is_active for filtering active accounts
         Index('ix_roofer_accounts_is_active', 'is_active'),
+        # Index on organization_id for team queries
+        Index('ix_roofer_accounts_organization_id', 'organization_id'),
     )
 
     def __repr__(self):

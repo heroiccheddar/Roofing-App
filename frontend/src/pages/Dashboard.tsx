@@ -5,6 +5,7 @@ import RecommendationCard from '../components/RecommendationCard'
 import RoutePanel from '../components/RoutePanel'
 import ErrorBoundary from '../components/ErrorBoundary'
 import FollowUpQueue from '../components/FollowUpQueue'
+import TeamPanel from '../components/TeamPanel'
 import useAppStore from '../stores/appStore'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { useDarkMode } from '../hooks/useDarkMode'
@@ -333,6 +334,13 @@ function Dashboard() {
           <div style={{ padding: '10px 12px 0', flexShrink: 0 }}>
             <ErrorBoundary>
               <RecommendationCard />
+            </ErrorBoundary>
+          </div>
+
+          {/* Team panel */}
+          <div style={{ flexShrink: 0 }}>
+            <ErrorBoundary>
+              <TeamPanel />
             </ErrorBoundary>
           </div>
 

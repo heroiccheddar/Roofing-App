@@ -242,7 +242,9 @@ interface PinDetailProps {
 
 function PinDetail({ pin, onBack }: PinDetailProps) {
   const darkMode = useAppStore((s) => s.darkMode)
+  const user = useAppStore((s) => s.user)
   const setSelectedLeadPinId = useAppStore((s) => s.setSelectedLeadPinId)
+  const isTeamPin = pin.roofer_account_id !== user?.id
   const { data: activitiesData, isLoading: activitiesLoading } = useLeadPinActivities(pin.id)
   const updatePin = useUpdateLeadPin()
   const deletePin = useDeleteLeadPin()
@@ -334,6 +336,11 @@ function PinDetail({ pin, onBack }: PinDetailProps) {
           <span style={{ fontSize: 12, color: textSecondary }}>
             {timeAgo(pin.created_at)}
           </span>
+          {isTeamPin && pin.roofer_name && (
+            <span style={{ fontSize: 12, color: textSecondary }}>
+              by {pin.roofer_name}
+            </span>
+          )}
         </div>
         {pin.notes && (
           <div style={{
@@ -351,159 +358,163 @@ function PinDetail({ pin, onBack }: PinDetailProps) {
         )}
       </div>
 
-      {/* Actions */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        <button
-          onClick={() => setShowUpdatePicker(true)}
-          style={{
-            flex: 1,
-            padding: '8px 0',
-            borderRadius: 8,
-            border: '1px solid #2563eb',
-            background: 'transparent',
-            color: '#2563eb',
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          Update
-        </button>
-        {!confirmDelete ? (
-          <button
-            onClick={() => setConfirmDelete(true)}
-            style={{
-              flex: 1,
-              padding: '8px 0',
-              borderRadius: 8,
-              border: '1px solid #ef4444',
-              background: 'transparent',
-              color: '#ef4444',
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            Delete
-          </button>
-        ) : (
-          <button
-            onClick={handleDelete}
-            disabled={deletePin.isPending}
-            style={{
-              flex: 1,
-              padding: '8px 0',
-              borderRadius: 8,
-              border: 'none',
-              background: '#ef4444',
-              color: '#ffffff',
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: deletePin.isPending ? 'wait' : 'pointer',
-              opacity: deletePin.isPending ? 0.7 : 1,
-            }}
-          >
-            {deletePin.isPending ? 'Deleting...' : 'Confirm Delete'}
-          </button>
-        )}
-      </div>
-      {confirmDelete && (
-        <button
-          onClick={() => setConfirmDelete(false)}
-          style={{
-            width: '100%',
-            padding: '6px 0',
-            borderRadius: 8,
-            border: `1px solid ${borderColor}`,
-            background: 'transparent',
-            color: textSecondary,
-            fontSize: 12,
-            cursor: 'pointer',
-            marginBottom: 12,
-          }}
-        >
-          Cancel delete
-        </button>
-      )}
-
-      {/* Log Note */}
-      {!showLogNote ? (
-        <button
-          onClick={() => setShowLogNote(true)}
-          style={{
-            width: '100%',
-            padding: '8px 0',
-            borderRadius: 8,
-            border: '1px solid #16a34a',
-            background: 'transparent',
-            color: '#16a34a',
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: 'pointer',
-            marginBottom: 16,
-          }}
-        >
-          Log Note
-        </button>
-      ) : (
-        <div style={{ marginBottom: 16 }}>
-          <textarea
-            value={noteText}
-            onChange={(e) => setNoteText(e.target.value)}
-            placeholder="Add a note about this visit..."
-            maxLength={1000}
-            style={{
-              width: '100%',
-              minHeight: 72,
-              padding: 10,
-              borderRadius: 8,
-              border: `1px solid ${borderColor}`,
-              background: darkMode ? '#0f172a' : '#ffffff',
-              color: darkMode ? '#f1f5f9' : '#0f172a',
-              fontSize: 13,
-              lineHeight: '1.5',
-              resize: 'vertical',
-              boxSizing: 'border-box',
-              marginBottom: 8,
-            }}
-            autoFocus
-          />
-          <div style={{ display: 'flex', gap: 8 }}>
+      {/* Actions — hidden for team pins */}
+      {!isTeamPin && (
+        <>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
             <button
-              onClick={handleLogNote}
-              disabled={!noteText.trim() || createActivity.isPending}
+              onClick={() => setShowUpdatePicker(true)}
               style={{
                 flex: 1,
-                padding: '7px 0',
+                padding: '8px 0',
                 borderRadius: 8,
-                border: 'none',
-                background: '#16a34a',
-                color: '#ffffff',
+                border: '1px solid #2563eb',
+                background: 'transparent',
+                color: '#2563eb',
                 fontSize: 13,
                 fontWeight: 600,
-                cursor: !noteText.trim() || createActivity.isPending ? 'not-allowed' : 'pointer',
-                opacity: !noteText.trim() || createActivity.isPending ? 0.5 : 1,
+                cursor: 'pointer',
               }}
             >
-              {createActivity.isPending ? 'Saving...' : 'Save Note'}
+              Update
             </button>
+            {!confirmDelete ? (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                style={{
+                  flex: 1,
+                  padding: '8px 0',
+                  borderRadius: 8,
+                  border: '1px solid #ef4444',
+                  background: 'transparent',
+                  color: '#ef4444',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Delete
+              </button>
+            ) : (
+              <button
+                onClick={handleDelete}
+                disabled={deletePin.isPending}
+                style={{
+                  flex: 1,
+                  padding: '8px 0',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: '#ef4444',
+                  color: '#ffffff',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: deletePin.isPending ? 'wait' : 'pointer',
+                  opacity: deletePin.isPending ? 0.7 : 1,
+                }}
+              >
+                {deletePin.isPending ? 'Deleting...' : 'Confirm Delete'}
+              </button>
+            )}
+          </div>
+          {confirmDelete && (
             <button
-              onClick={() => { setShowLogNote(false); setNoteText('') }}
+              onClick={() => setConfirmDelete(false)}
               style={{
-                flex: 1,
-                padding: '7px 0',
+                width: '100%',
+                padding: '6px 0',
                 borderRadius: 8,
                 border: `1px solid ${borderColor}`,
                 background: 'transparent',
                 color: textSecondary,
-                fontSize: 13,
+                fontSize: 12,
                 cursor: 'pointer',
+                marginBottom: 12,
               }}
             >
-              Cancel
+              Cancel delete
             </button>
-          </div>
-        </div>
+          )}
+
+          {/* Log Note */}
+          {!showLogNote ? (
+            <button
+              onClick={() => setShowLogNote(true)}
+              style={{
+                width: '100%',
+                padding: '8px 0',
+                borderRadius: 8,
+                border: '1px solid #16a34a',
+                background: 'transparent',
+                color: '#16a34a',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+                marginBottom: 16,
+              }}
+            >
+              Log Note
+            </button>
+          ) : (
+            <div style={{ marginBottom: 16 }}>
+              <textarea
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+                placeholder="Add a note about this visit..."
+                maxLength={1000}
+                style={{
+                  width: '100%',
+                  minHeight: 72,
+                  padding: 10,
+                  borderRadius: 8,
+                  border: `1px solid ${borderColor}`,
+                  background: darkMode ? '#0f172a' : '#ffffff',
+                  color: darkMode ? '#f1f5f9' : '#0f172a',
+                  fontSize: 13,
+                  lineHeight: '1.5',
+                  resize: 'vertical',
+                  boxSizing: 'border-box',
+                  marginBottom: 8,
+                }}
+                autoFocus
+              />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={handleLogNote}
+                  disabled={!noteText.trim() || createActivity.isPending}
+                  style={{
+                    flex: 1,
+                    padding: '7px 0',
+                    borderRadius: 8,
+                    border: 'none',
+                    background: '#16a34a',
+                    color: '#ffffff',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: !noteText.trim() || createActivity.isPending ? 'not-allowed' : 'pointer',
+                    opacity: !noteText.trim() || createActivity.isPending ? 0.5 : 1,
+                  }}
+                >
+                  {createActivity.isPending ? 'Saving...' : 'Save Note'}
+                </button>
+                <button
+                  onClick={() => { setShowLogNote(false); setNoteText('') }}
+                  style={{
+                    flex: 1,
+                    padding: '7px 0',
+                    borderRadius: 8,
+                    border: `1px solid ${borderColor}`,
+                    background: 'transparent',
+                    color: textSecondary,
+                    fontSize: 13,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* Activity timeline */}
@@ -739,6 +750,11 @@ function LeadPinPanel() {
                         {pin.address || 'Dropped pin'}
                       </div>
                       <DispositionBadge disposition={pin.disposition} />
+                      {pin.roofer_name && (
+                        <div style={{ fontSize: 11, color: textSecondary, marginTop: 1 }}>
+                          by {pin.roofer_name}
+                        </div>
+                      )}
                     </div>
                     <span style={{ fontSize: 11, color: textSecondary, flexShrink: 0 }}>
                       {timeAgo(pin.created_at)}
