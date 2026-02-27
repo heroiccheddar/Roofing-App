@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   getLeadPins,
   getLeadPinsGeoJSON,
+  getLeadPinCallbacks,
   createLeadPin,
   updateLeadPin,
   deleteLeadPin,
@@ -29,6 +30,14 @@ export function useLeadPinsGeoJSON(disposition?: string) {
   })
 }
 
+export function useLeadPinCallbacks() {
+  return useQuery({
+    queryKey: ['lead-pin-callbacks'],
+    queryFn: () => getLeadPinCallbacks(),
+    staleTime: 60_000,
+  })
+}
+
 export function useCreateLeadPin() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -37,6 +46,7 @@ export function useCreateLeadPin() {
       queryClient.invalidateQueries({ queryKey: ['lead-pins'] })
       queryClient.invalidateQueries({ queryKey: ['lead-pins-geojson'] })
       queryClient.invalidateQueries({ queryKey: ['property-points-geojson'] })
+      queryClient.invalidateQueries({ queryKey: ['lead-pin-callbacks'] })
     },
   })
 }
@@ -51,6 +61,7 @@ export function useUpdateLeadPin() {
       queryClient.invalidateQueries({ queryKey: ['lead-pins-geojson'] })
       queryClient.invalidateQueries({ queryKey: ['lead-pin-activities'] })
       queryClient.invalidateQueries({ queryKey: ['property-points-geojson'] })
+      queryClient.invalidateQueries({ queryKey: ['lead-pin-callbacks'] })
     },
   })
 }
@@ -63,6 +74,7 @@ export function useDeleteLeadPin() {
       queryClient.invalidateQueries({ queryKey: ['lead-pins'] })
       queryClient.invalidateQueries({ queryKey: ['lead-pins-geojson'] })
       queryClient.invalidateQueries({ queryKey: ['property-points-geojson'] })
+      queryClient.invalidateQueries({ queryKey: ['lead-pin-callbacks'] })
     },
   })
 }

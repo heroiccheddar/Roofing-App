@@ -4,6 +4,7 @@ import ZonePanel from '../components/ZonePanel'
 import RecommendationCard from '../components/RecommendationCard'
 import RoutePanel from '../components/RoutePanel'
 import ErrorBoundary from '../components/ErrorBoundary'
+import FollowUpQueue from '../components/FollowUpQueue'
 import useAppStore from '../stores/appStore'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { useDarkMode } from '../hooks/useDarkMode'
@@ -332,6 +333,13 @@ function Dashboard() {
           <div style={{ padding: '10px 12px 0', flexShrink: 0 }}>
             <ErrorBoundary>
               <RecommendationCard />
+            </ErrorBoundary>
+          </div>
+
+          {/* Follow-up queue */}
+          <div style={{ flexShrink: 0 }}>
+            <ErrorBoundary>
+              <FollowUpQueue />
             </ErrorBoundary>
           </div>
 

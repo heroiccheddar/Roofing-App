@@ -392,6 +392,10 @@ export async function getLeadPins(
   return apiFetch<LeadPinListResponse>('/api/v1/leads', { params });
 }
 
+export async function getLeadPinCallbacks(): Promise<LeadPinListResponse> {
+  return apiFetch<LeadPinListResponse>('/api/v1/leads/callbacks');
+}
+
 export async function getLeadPinsGeoJSON(
   bbox?: [number, number, number, number],
   disposition?: string,

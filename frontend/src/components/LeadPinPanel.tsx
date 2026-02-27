@@ -43,8 +43,9 @@ const DISPOSITION_ORDER: LeadPinDisposition[] = [
 interface DispositionPickerProps {
   initialDisposition?: LeadPinDisposition
   initialNotes?: string
+  initialCallbackDate?: string
   title: string
-  onConfirm: (disposition: LeadPinDisposition, notes: string) => void
+  onConfirm: (disposition: LeadPinDisposition, notes: string, callbackDate?: string) => void
   onCancel: () => void
   isLoading?: boolean
 }
@@ -52,6 +53,7 @@ interface DispositionPickerProps {
 export function DispositionPicker({
   initialDisposition,
   initialNotes = '',
+  initialCallbackDate,
   title,
   onConfirm,
   onCancel,
@@ -61,6 +63,7 @@ export function DispositionPicker({
     initialDisposition ?? 'not_home',
   )
   const [notes, setNotes] = useState(initialNotes)
+  const [callbackDate, setCallbackDate] = useState(initialCallbackDate || '')
   const darkMode = useAppStore((s) => s.darkMode)
 
   return (
@@ -134,6 +137,30 @@ export function DispositionPicker({
           })}
         </div>
 
+        {/* Callback date — only shown when disposition is 'callback' */}
+        {selected === 'callback' && (
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 12, color: darkMode ? '#94a3b8' : '#64748b', display: 'block', marginBottom: 4 }}>
+              Follow-up date (optional)
+            </label>
+            <input
+              type="datetime-local"
+              value={callbackDate}
+              onChange={(e) => setCallbackDate(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px 10px',
+                borderRadius: 8,
+                border: `1px solid ${darkMode ? '#334155' : '#e2e8f0'}`,
+                background: darkMode ? '#0f172a' : '#ffffff',
+                color: darkMode ? '#f1f5f9' : '#0f172a',
+                fontSize: 13,
+                boxSizing: 'border-box',
+              }}
+            />
+          </div>
+        )}
+
         {/* Notes textarea */}
         <textarea
           placeholder="Notes (optional)"
@@ -183,7 +210,7 @@ export function DispositionPicker({
             Cancel
           </button>
           <button
-            onClick={() => onConfirm(selected, notes)}
+            onClick={() => onConfirm(selected, notes, callbackDate || undefined)}
             disabled={isLoading}
             style={{
               flex: 2,
@@ -225,9 +252,9 @@ function PinDetail({ pin, onBack }: PinDetailProps) {
   const [showLogNote, setShowLogNote] = useState(false)
   const [noteText, setNoteText] = useState('')
 
-  const handleUpdate = (disposition: LeadPinDisposition, notes: string) => {
+  const handleUpdate = (disposition: LeadPinDisposition, notes: string, callbackDate?: string) => {
     updatePin.mutate(
-      { pinId: pin.id, data: { disposition, notes } },
+      { pinId: pin.id, data: { disposition, notes, callback_date: callbackDate } },
       {
         onSuccess: () => {
           setShowUpdatePicker(false)
@@ -269,6 +296,7 @@ function PinDetail({ pin, onBack }: PinDetailProps) {
           title="Update Disposition"
           initialDisposition={pin.disposition}
           initialNotes={pin.notes ?? ''}
+          initialCallbackDate={pin.callback_date}
           onConfirm={handleUpdate}
           onCancel={() => setShowUpdatePicker(false)}
           isLoading={updatePin.isPending}

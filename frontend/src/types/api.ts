@@ -449,11 +449,13 @@ export interface LeadPinCreate {
   notes?: string;
   property_id?: string;
   lead_zone_id?: string;
+  callback_date?: string;
 }
 
 export interface LeadPinUpdate {
   disposition?: LeadPinDisposition;
   notes?: string;
+  callback_date?: string;
 }
 
 export interface LeadPinResponse {
@@ -466,6 +468,7 @@ export interface LeadPinResponse {
   address?: string;
   disposition: LeadPinDisposition;
   notes?: string;
+  callback_date?: string;
   created_at: string;
   updated_at: string;
 }

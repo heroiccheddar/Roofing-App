@@ -33,7 +33,7 @@ function PendingPinCreator() {
 
   if (!pendingPinLocation) return null
 
-  const handleConfirm = (disposition: LeadPinDisposition, notes: string) => {
+  const handleConfirm = (disposition: LeadPinDisposition, notes: string, callbackDate?: string) => {
     createPin.mutate(
       {
         lat: pendingPinLocation.lat,
@@ -43,6 +43,7 @@ function PendingPinCreator() {
         address: pendingPinLocation.address,
         property_id: pendingPinLocation.property_id,
         lead_zone_id: pendingPinLocation.lead_zone_id,
+        callback_date: callbackDate,
       },
       {
         onSuccess: () => {

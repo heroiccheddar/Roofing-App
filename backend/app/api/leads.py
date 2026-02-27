@@ -11,7 +11,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from geoalchemy2 import WKTElement
 from geoalchemy2.shape import to_shape
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -59,6 +59,7 @@ def _pin_to_response(pin: LeadPin) -> LeadPinResponse:
         address=pin.address,
         disposition=pin.disposition,
         notes=pin.notes,
+        callback_date=pin.callback_date,
         created_at=pin.created_at,
         updated_at=pin.updated_at,
     )
@@ -234,6 +235,7 @@ async def create_lead_pin(
         address=body.address,
         disposition=body.disposition,
         notes=body.notes,
+        callback_date=body.callback_date,
     )
     db.add(pin)
     await db.flush()  # populate pin.id before creating the activity
@@ -250,6 +252,36 @@ async def create_lead_pin(
     await db.refresh(pin)
 
     return _pin_to_response(pin)
+
+
+@router.get("/callbacks", response_model=LeadPinListResponse)
+async def get_lead_pin_callbacks(
+    current_user: RooferAccount = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> LeadPinListResponse:
+    """Return all lead pins that need follow-up, sorted by urgency.
+
+    Includes pins with disposition='callback' or any pin with a callback_date set.
+    Sorted by callback_date ASC (overdue first) with nulls last.
+    """
+    stmt = (
+        select(LeadPin)
+        .where(
+            LeadPin.roofer_account_id == current_user.id,
+            or_(
+                LeadPin.disposition == "callback",
+                LeadPin.callback_date.isnot(None),
+            ),
+        )
+        .order_by(LeadPin.callback_date.asc().nullslast(), LeadPin.updated_at.desc())
+    )
+    result = await db.execute(stmt)
+    pins = result.scalars().all()
+
+    return LeadPinListResponse(
+        pins=[_pin_to_response(p) for p in pins],
+        total=len(pins),
+    )
 
 
 @router.put("/{pin_id}", response_model=LeadPinResponse)
@@ -294,6 +326,11 @@ async def update_lead_pin(
         pin.disposition = body.disposition
     if body.notes is not None:
         pin.notes = body.notes
+    if body.callback_date is not None:
+        pin.callback_date = body.callback_date
+    # Clear callback_date if disposition changed away from callback
+    if body.disposition is not None and body.disposition != "callback" and body.callback_date is None:
+        pin.callback_date = None
 
     # Record the interaction in the activity log regardless of what changed
     activity = PinActivity(

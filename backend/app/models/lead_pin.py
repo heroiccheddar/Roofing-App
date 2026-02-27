@@ -73,6 +73,9 @@ class LeadPin(Base):
     # Free-form notes on the current status
     notes = Column(Text, nullable=True)
 
+    # Scheduled follow-up date (set when disposition is "callback")
+    callback_date = Column(DateTime(timezone=True), nullable=True, index=True)
+
     # Timestamps
     created_at = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

@@ -741,9 +741,9 @@ function PropertyCard({ property: p, zoneId, pin }: { property: PropertyResponse
           title="Update Status"
           initialDisposition={pin.disposition as LeadPinDisposition}
           initialNotes={pin.notes ?? ''}
-          onConfirm={(disposition, notes) => {
+          onConfirm={(disposition, notes, callbackDate) => {
             updatePin.mutate(
-              { pinId: pin.id, data: { disposition, notes: notes || undefined } },
+              { pinId: pin.id, data: { disposition, notes: notes || undefined, callback_date: callbackDate } },
               { onSuccess: () => setEditing(false) },
             )
           }}

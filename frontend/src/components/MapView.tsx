@@ -73,6 +73,8 @@ function MapView() {
   const isPinDropMode = useAppStore((s) => s.isPinDropMode)
   const setSelectedLeadPinId = useAppStore((s) => s.setSelectedLeadPinId)
   const setPendingPinLocation = useAppStore((s) => s.setPendingPinLocation)
+  const flyToCoords = useAppStore((s) => s.flyToCoords)
+  const setFlyToCoords = useAppStore((s) => s.setFlyToCoords)
   const { data: leadPinsGeoJSON } = useLeadPinsGeoJSON()
   const { data: propertyPointsGeoJSON } = usePropertyPointsGeoJSON()
   const { data: tractsGeojson } = useZoneTracts(selectedZoneId)
@@ -576,6 +578,14 @@ function MapView() {
     lastFlyToZoneRef.current = selectedZoneId
     map.flyTo({ center: [lon, lat], zoom: 11, duration: 1000 })
   }, [selectedZoneId, geojson])
+
+  // Fly to coords when flyToCoords store value is set (e.g. from FollowUpQueue)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoaded || !flyToCoords) return
+    map.flyTo({ center: [flyToCoords.lon, flyToCoords.lat], zoom: flyToCoords.zoom ?? 15, duration: 1000 })
+    setFlyToCoords(null)
+  }, [flyToCoords, mapLoaded])
 
   // Update tract overlay when tracts data changes
   useEffect(() => {
