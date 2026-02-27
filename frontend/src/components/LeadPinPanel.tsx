@@ -584,7 +584,7 @@ function LeadPinPanel() {
   const { data: pinsData, isLoading: pinsLoading } = useLeadPins()
 
   // Direct fetch for the selected pin (used when pin isn't in the bbox list)
-  const { data: pinDetail, isLoading: pinDetailLoading } = useLeadPinDetail(selectedLeadPinId)
+  const { data: pinDetail, error: pinDetailError } = useLeadPinDetail(selectedLeadPinId)
 
   const textPrimary = darkMode ? '#f1f5f9' : '#0f172a'
   const textSecondary = darkMode ? '#94a3b8' : '#64748b'
@@ -596,41 +596,48 @@ function LeadPinPanel() {
   const selectedPin = selectedLeadPinId
     ? pinsData?.pins.find((p) => p.id === selectedLeadPinId) ?? pinDetail ?? null
     : null
-  const pinLoading = pinsLoading || pinDetailLoading
+
+  // When a pin is selected, show its detail (or loading/error state)
+  if (selectedLeadPinId) {
+    if (selectedPin) {
+      return (
+        <div style={{ padding: 16 }}>
+          <PinDetail
+            pin={selectedPin}
+            onBack={() => setSelectedLeadPinId(null)}
+          />
+        </div>
+      )
+    }
+
+    // Loading or error fallback — always show Back button
+    return (
+      <div style={{ padding: 16 }}>
+        <button
+          onClick={() => setSelectedLeadPinId(null)}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: '#2563eb',
+            cursor: 'pointer',
+            fontSize: 14,
+            padding: 0,
+            marginBottom: 12,
+          }}
+        >
+          Back to list
+        </button>
+        <div style={{ fontSize: 13, color: textSecondary, textAlign: 'center', padding: 24 }}>
+          {pinDetailError
+            ? `Failed to load pin: ${pinDetailError instanceof Error ? pinDetailError.message : 'Unknown error'}`
+            : 'Loading pin...'}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={{ padding: 16 }}>
-
-      {/* Pin detail view */}
-      {selectedLeadPinId && selectedPin && (
-        <PinDetail
-          pin={selectedPin}
-          onBack={() => setSelectedLeadPinId(null)}
-        />
-      )}
-
-      {/* Loading state for selected pin */}
-      {selectedLeadPinId && !selectedPin && pinLoading && (
-        <div>
-          <button
-            onClick={() => setSelectedLeadPinId(null)}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#2563eb',
-              cursor: 'pointer',
-              fontSize: 14,
-              padding: 0,
-              marginBottom: 12,
-            }}
-          >
-            Back to list
-          </button>
-          <div style={{ fontSize: 13, color: textSecondary, textAlign: 'center', padding: 24 }}>
-            Loading pin...
-          </div>
-        </div>
-      )}
 
       {/* Pin list view — show when no pin is selected */}
       {!selectedLeadPinId && (
