@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import MapView from '../components/MapView'
 import ZonePanel from '../components/ZonePanel'
+import LeadPinPanel from '../components/LeadPinPanel'
 import RecommendationCard from '../components/RecommendationCard'
 import RoutePanel from '../components/RoutePanel'
 import ErrorBoundary from '../components/ErrorBoundary'
@@ -147,15 +148,24 @@ function Dashboard() {
               flexDirection: 'column', overflow: 'hidden',
             }}
           >
-            {/* RecommendationCard above zone list on mobile */}
-            <div style={{ padding: '8px 12px 0', flexShrink: 0 }}>
-              <ErrorBoundary>
-                <RecommendationCard />
-              </ErrorBoundary>
-            </div>
-            <div style={{ flex: 1, overflow: 'hidden' }}>
-              <ZonePanel isMobile />
-            </div>
+            {selectedLeadPinId ? (
+              /* Pin detail takes over when a pin is selected */
+              <div style={{ flex: 1, overflowY: 'auto' }}>
+                <LeadPinPanel />
+              </div>
+            ) : (
+              <>
+                {/* RecommendationCard above zone list on mobile */}
+                <div style={{ padding: '8px 12px 0', flexShrink: 0 }}>
+                  <ErrorBoundary>
+                    <RecommendationCard />
+                  </ErrorBoundary>
+                </div>
+                <div style={{ flex: 1, overflow: 'hidden' }}>
+                  <ZonePanel isMobile />
+                </div>
+              </>
+            )}
           </div>
 
           {/* Route tab */}
@@ -344,38 +354,47 @@ function Dashboard() {
 
         {/* Sidebar body — scrollable */}
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          {/* RecommendationCard above the zone panel */}
-          <div style={{ padding: '10px 12px 0', flexShrink: 0 }}>
-            <ErrorBoundary>
-              <RecommendationCard />
-            </ErrorBoundary>
-          </div>
+          {selectedLeadPinId ? (
+            /* Pin detail takes over the sidebar when a pin is selected */
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              <LeadPinPanel />
+            </div>
+          ) : (
+            <>
+              {/* RecommendationCard above the zone panel */}
+              <div style={{ padding: '10px 12px 0', flexShrink: 0 }}>
+                <ErrorBoundary>
+                  <RecommendationCard />
+                </ErrorBoundary>
+              </div>
 
-          {/* Team panel */}
-          <div style={{ flexShrink: 0 }}>
-            <ErrorBoundary>
-              <TeamPanel />
-            </ErrorBoundary>
-          </div>
+              {/* Team panel */}
+              <div style={{ flexShrink: 0 }}>
+                <ErrorBoundary>
+                  <TeamPanel />
+                </ErrorBoundary>
+              </div>
 
-          {/* Leaderboard panel */}
-          <div style={{ flexShrink: 0 }}>
-            <ErrorBoundary>
-              <LeaderboardPanel />
-            </ErrorBoundary>
-          </div>
+              {/* Leaderboard panel */}
+              <div style={{ flexShrink: 0 }}>
+                <ErrorBoundary>
+                  <LeaderboardPanel />
+                </ErrorBoundary>
+              </div>
 
-          {/* Follow-up queue */}
-          <div style={{ flexShrink: 0 }}>
-            <ErrorBoundary>
-              <FollowUpQueue />
-            </ErrorBoundary>
-          </div>
+              {/* Follow-up queue */}
+              <div style={{ flexShrink: 0 }}>
+                <ErrorBoundary>
+                  <FollowUpQueue />
+                </ErrorBoundary>
+              </div>
 
-          {/* Zone panel fills remaining space */}
-          <div style={{ flex: 1, overflow: 'hidden' }}>
-            <ZonePanel />
-          </div>
+              {/* Zone panel fills remaining space */}
+              <div style={{ flex: 1, overflow: 'hidden' }}>
+                <ZonePanel />
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
