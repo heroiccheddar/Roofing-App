@@ -71,6 +71,7 @@ export function useUpdateLeadPin() {
       updateLeadPin(pinId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['lead-pins'] })
+      queryClient.invalidateQueries({ queryKey: ['lead-pin'] })
       queryClient.invalidateQueries({ queryKey: ['lead-pins-geojson'] })
       queryClient.invalidateQueries({ queryKey: ['lead-pin-activities'] })
       queryClient.invalidateQueries({ queryKey: ['property-points-geojson'] })
@@ -84,6 +85,7 @@ export function useDeleteLeadPin() {
   return useMutation({
     mutationFn: (pinId: string) => deleteLeadPin(pinId),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['lead-pin'] })
       queryClient.invalidateQueries({ queryKey: ['lead-pins'] })
       queryClient.invalidateQueries({ queryKey: ['lead-pins-geojson'] })
       queryClient.invalidateQueries({ queryKey: ['property-points-geojson'] })
