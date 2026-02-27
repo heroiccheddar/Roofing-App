@@ -402,6 +402,10 @@ export async function getLeadPins(
   return apiFetch<LeadPinListResponse>('/api/v1/leads', { params });
 }
 
+export async function getLeadPin(pinId: string): Promise<LeadPinResponse> {
+  return apiFetch<LeadPinResponse>(`/api/v1/leads/${pinId}`)
+}
+
 export async function getLeadPinCallbacks(team?: boolean): Promise<LeadPinListResponse> {
   const params: Record<string, string | undefined> = {};
   if (team) params.team = 'true';

@@ -11,7 +11,7 @@
 
 import { useState } from 'react'
 import useAppStore from '../stores/appStore'
-import { useLeadPins, useUpdateLeadPin, useDeleteLeadPin, useLeadPinActivities, useCreatePinActivity } from '../hooks/useLeadPins'
+import { useLeadPins, useLeadPinDetail, useUpdateLeadPin, useDeleteLeadPin, useLeadPinActivities, useCreatePinActivity } from '../hooks/useLeadPins'
 import { DispositionBadge, DISPOSITION_COLORS, DISPOSITION_LABELS } from './ZoneDetailHelpers'
 import PhotoGallery from './PhotoGallery'
 import type { LeadPinDisposition, LeadPinResponse } from '../types/api'
@@ -583,16 +583,20 @@ function LeadPinPanel() {
 
   const { data: pinsData, isLoading: pinsLoading } = useLeadPins()
 
+  // Direct fetch for the selected pin (used when pin isn't in the bbox list)
+  const { data: pinDetail, isLoading: pinDetailLoading } = useLeadPinDetail(selectedLeadPinId)
+
   const textPrimary = darkMode ? '#f1f5f9' : '#0f172a'
   const textSecondary = darkMode ? '#94a3b8' : '#64748b'
   const borderColor = darkMode ? '#334155' : '#e2e8f0'
   const bgSecondary = darkMode ? '#1e293b' : '#f8fafc'
   const cardBg = darkMode ? '#0f172a' : '#ffffff'
 
-  // Find the selected pin object for detail view
+  // Find selected pin: try list data first, fall back to direct fetch
   const selectedPin = selectedLeadPinId
-    ? pinsData?.pins.find((p) => p.id === selectedLeadPinId) ?? null
+    ? pinsData?.pins.find((p) => p.id === selectedLeadPinId) ?? pinDetail ?? null
     : null
+  const pinLoading = pinsLoading || pinDetailLoading
 
   return (
     <div style={{ padding: 16 }}>
@@ -605,8 +609,8 @@ function LeadPinPanel() {
         />
       )}
 
-      {/* Loading state for selected pin that isn't in local data yet */}
-      {selectedLeadPinId && !selectedPin && pinsLoading && (
+      {/* Loading state for selected pin */}
+      {selectedLeadPinId && !selectedPin && pinLoading && (
         <div>
           <button
             onClick={() => setSelectedLeadPinId(null)}

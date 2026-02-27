@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
+  getLeadPin,
   getLeadPins,
   getLeadPinsGeoJSON,
   getLeadPinCallbacks,
@@ -11,6 +12,15 @@ import {
 } from '../api/client'
 import type { LeadPinCreate, LeadPinUpdate, PinActivityCreate } from '../types/api'
 import useAppStore from '../stores/appStore'
+
+export function useLeadPinDetail(pinId: string | null) {
+  return useQuery({
+    queryKey: ['lead-pin', pinId],
+    queryFn: () => getLeadPin(pinId!),
+    enabled: !!pinId,
+    staleTime: 30_000,
+  })
+}
 
 export function useLeadPins() {
   const mapBounds = useAppStore((s) => s.mapBounds)

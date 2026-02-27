@@ -358,6 +358,33 @@ async def get_lead_pin_callbacks(
     )
 
 
+@router.get("/{pin_id}", response_model=LeadPinResponse)
+async def get_lead_pin(
+    pin_id: UUID,
+    current_user: RooferAccount = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> LeadPinResponse:
+    """Get a single lead pin by ID."""
+    member_ids = await _get_team_member_ids(current_user, db)
+    owner_filter = (
+        LeadPin.roofer_account_id.in_(member_ids)
+        if member_ids
+        else LeadPin.roofer_account_id == current_user.id
+    )
+    stmt = (
+        select(LeadPin, RooferAccount.company_name)
+        .outerjoin(RooferAccount, LeadPin.roofer_account_id == RooferAccount.id)
+        .where(LeadPin.id == pin_id, owner_filter)
+    )
+    result = await db.execute(stmt)
+    row = result.first()
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead pin not found")
+    pin, company_name = row
+    name = company_name if pin.roofer_account_id != current_user.id else None
+    return _pin_to_response(pin, roofer_name=name)
+
+
 @router.put("/{pin_id}", response_model=LeadPinResponse)
 async def update_lead_pin(
     pin_id: UUID,
