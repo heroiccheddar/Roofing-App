@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import useAppStore from '../stores/appStore'
 import { useLeadPinCallbacks } from '../hooks/useLeadPins'
+import { useGeolocation } from '../hooks/useGeolocation'
+import { getDirectionsRoute } from '../api/mapbox'
 import { DispositionBadge } from './ZoneDetailHelpers'
 
 function callbackTimeLabel(dateStr: string | undefined): { text: string; color: string } {
@@ -22,9 +24,15 @@ export default function FollowUpQueue() {
   const darkMode = useAppStore((s) => s.darkMode)
   const setFlyToCoords = useAppStore((s) => s.setFlyToCoords)
   const setSelectedLeadPinId = useAppStore((s) => s.setSelectedLeadPinId)
+  const setRouteGeometry = useAppStore((s) => s.setRouteGeometry)
+  const clearRoute = useAppStore((s) => s.clearRoute)
   const { data, isLoading } = useLeadPinCallbacks()
+  const { lat: geoLat, lon: geoLon, loading: geoLoading } = useGeolocation()
 
   const [expanded, setExpanded] = useState(true)
+  const [routeLoading, setRouteLoading] = useState(false)
+  const [routeStats, setRouteStats] = useState<{ distance_km: number; duration_minutes: number; stops: number } | null>(null)
+  const [routeError, setRouteError] = useState<string | null>(null)
 
   const textPrimary = darkMode ? '#f1f5f9' : '#0f172a'
   const textSecondary = darkMode ? '#94a3b8' : '#64748b'
@@ -32,6 +40,32 @@ export default function FollowUpQueue() {
 
   const pins = data?.pins ?? []
   const count = pins.length
+  const canPlanRoute = count >= 2 && geoLat !== null && geoLon !== null && !geoLoading
+
+  async function handlePlanRoute() {
+    if (!canPlanRoute) return
+    setRouteLoading(true)
+    setRouteError(null)
+    try {
+      const coords: [number, number][] = [
+        [geoLon!, geoLat!],
+        ...pins.map((p) => [p.lon, p.lat] as [number, number]),
+      ]
+      const result = await getDirectionsRoute(coords)
+      setRouteGeometry(result.geometry)
+      setRouteStats({ distance_km: result.distance_km, duration_minutes: result.duration_minutes, stops: pins.length })
+    } catch (err) {
+      setRouteError(err instanceof Error ? err.message : 'Route planning failed')
+    } finally {
+      setRouteLoading(false)
+    }
+  }
+
+  function handleClearRoute() {
+    clearRoute()
+    setRouteStats(null)
+    setRouteError(null)
+  }
 
   // Auto-collapse if empty
   if (count === 0 && !isLoading) {
@@ -74,54 +108,158 @@ export default function FollowUpQueue() {
 
       {/* List */}
       {expanded && (
-        <div style={{ maxHeight: 240, overflowY: 'auto' }}>
-          {isLoading && (
-            <div style={{ padding: 16, fontSize: 13, color: textSecondary, textAlign: 'center' }}>
-              Loading...
+        <>
+          <div style={{ maxHeight: 240, overflowY: 'auto' }}>
+            {isLoading && (
+              <div style={{ padding: 16, fontSize: 13, color: textSecondary, textAlign: 'center' }}>
+                Loading...
+              </div>
+            )}
+            {pins.map((pin, i) => {
+              const { text, color } = callbackTimeLabel(pin.callback_date)
+              return (
+                <button
+                  key={pin.id}
+                  onClick={() => {
+                    setFlyToCoords({ lat: pin.lat, lon: pin.lon, zoom: 16 })
+                    setSelectedLeadPinId(pin.id)
+                  }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '8px 16px',
+                    background: 'transparent',
+                    border: 'none',
+                    borderTop: `1px solid ${borderColor}`,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  {/* Stop number when route is active */}
+                  {routeStats && (
+                    <span style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: '50%',
+                      background: '#2563eb',
+                      color: '#fff',
+                      fontSize: 10,
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}>
+                      {i + 1}
+                    </span>
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: textPrimary,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}>
+                      {pin.address || 'Dropped pin'}
+                    </div>
+                    <div style={{ fontSize: 11, color, fontWeight: 600, marginTop: 2 }}>
+                      {text}
+                    </div>
+                  </div>
+                  <DispositionBadge disposition={pin.disposition} />
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Route stats */}
+          {routeStats && (
+            <div style={{
+              margin: '0 16px 8px',
+              padding: 8,
+              borderRadius: 8,
+              background: darkMode ? '#0c2d1f' : '#f0fdf4',
+              border: `1px solid ${darkMode ? '#16a34a44' : '#16a34a33'}`,
+              fontSize: 12,
+              color: darkMode ? '#4ade80' : '#16a34a',
+              fontWeight: 600,
+              display: 'flex',
+              gap: 12,
+            }}>
+              <span>{routeStats.distance_km.toFixed(1)} km</span>
+              <span>~{Math.round(routeStats.duration_minutes)} min</span>
+              <span>{routeStats.stops} stops</span>
             </div>
           )}
-          {pins.map((pin) => {
-            const { text, color } = callbackTimeLabel(pin.callback_date)
-            return (
-              <button
-                key={pin.id}
-                onClick={() => {
-                  setFlyToCoords({ lat: pin.lat, lon: pin.lon, zoom: 16 })
-                  setSelectedLeadPinId(pin.id)
-                }}
-                style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '8px 16px',
-                  background: 'transparent',
-                  border: 'none',
-                  borderTop: `1px solid ${borderColor}`,
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                }}
-              >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{
-                    fontSize: 13,
+
+          {/* Route error */}
+          {routeError && (
+            <div style={{
+              margin: '0 16px 8px',
+              padding: 8,
+              borderRadius: 8,
+              background: darkMode ? '#2d0c0c' : '#fef2f2',
+              border: `1px solid ${darkMode ? '#ef444444' : '#ef444433'}`,
+              fontSize: 12,
+              color: '#ef4444',
+            }}>
+              {routeError}
+            </div>
+          )}
+
+          {/* GPS status */}
+          {geoLoading && (
+            <div style={{ padding: '4px 16px 8px', fontSize: 11, color: textSecondary }}>
+              Waiting for GPS...
+            </div>
+          )}
+
+          {/* Route buttons */}
+          {count >= 2 && (
+            <div style={{ display: 'flex', gap: 8, padding: '0 16px 10px' }}>
+              {!routeStats ? (
+                <button
+                  onClick={handlePlanRoute}
+                  disabled={!canPlanRoute || routeLoading}
+                  style={{
+                    flex: 1,
+                    padding: '7px 0',
+                    borderRadius: 8,
+                    border: 'none',
+                    background: canPlanRoute && !routeLoading ? '#2563eb' : (darkMode ? '#334155' : '#e2e8f0'),
+                    color: canPlanRoute && !routeLoading ? '#fff' : textSecondary,
+                    fontSize: 12,
                     fontWeight: 600,
-                    color: textPrimary,
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                  }}>
-                    {pin.address || 'Dropped pin'}
-                  </div>
-                  <div style={{ fontSize: 11, color, fontWeight: 600, marginTop: 2 }}>
-                    {text}
-                  </div>
-                </div>
-                <DispositionBadge disposition={pin.disposition} />
-              </button>
-            )
-          })}
-        </div>
+                    cursor: canPlanRoute && !routeLoading ? 'pointer' : 'not-allowed',
+                  }}
+                >
+                  {routeLoading ? 'Planning...' : 'Plan Route'}
+                </button>
+              ) : (
+                <button
+                  onClick={handleClearRoute}
+                  style={{
+                    flex: 1,
+                    padding: '7px 0',
+                    borderRadius: 8,
+                    border: `1px solid ${borderColor}`,
+                    background: 'transparent',
+                    color: textSecondary,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Clear Route
+                </button>
+              )}
+            </div>
+          )}
+        </>
       )}
     </div>
   )
