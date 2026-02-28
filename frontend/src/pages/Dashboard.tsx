@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import MapView from '../components/MapView'
 import ZonePanel from '../components/ZonePanel'
 import LeadPinPanel from '../components/LeadPinPanel'
@@ -27,17 +27,6 @@ function Dashboard() {
   const { darkMode, toggleDarkMode } = useDarkMode()
   const { isOnline, pendingCount } = useOfflineQueue()
   const { needsUpdate, update: updateSW } = useServiceWorker()
-
-  // Auto-switch to zones tab when a pin is tapped on the map (mobile only)
-  useEffect(() => {
-    if (isMobile && selectedLeadPinId && mobileTab === 'map') {
-      setMobileTab('zones')
-      // Scroll the pin panel into view after the tab switch renders
-      requestAnimationFrame(() => {
-        document.getElementById('lead-pin-panel')?.scrollIntoView({ behavior: 'smooth' })
-      })
-    }
-  }, [isMobile, selectedLeadPinId, mobileTab])
 
   if (isMobile) {
     return (
@@ -148,25 +137,28 @@ function Dashboard() {
               flexDirection: 'column', overflow: 'hidden',
             }}
           >
-            {selectedLeadPinId ? (
-              /* Pin detail takes over when a pin is selected */
-              <div style={{ flex: 1, overflowY: 'auto' }}>
-                <LeadPinPanel />
-              </div>
-            ) : (
-              <>
-                {/* RecommendationCard above zone list on mobile */}
-                <div style={{ padding: '8px 12px 0', flexShrink: 0 }}>
-                  <ErrorBoundary>
-                    <RecommendationCard />
-                  </ErrorBoundary>
-                </div>
-                <div style={{ flex: 1, overflow: 'hidden' }}>
-                  <ZonePanel isMobile />
-                </div>
-              </>
-            )}
+            {/* RecommendationCard above zone list on mobile */}
+            <div style={{ padding: '8px 12px 0', flexShrink: 0 }}>
+              <ErrorBoundary>
+                <RecommendationCard />
+              </ErrorBoundary>
+            </div>
+            <div style={{ flex: 1, overflow: 'hidden' }}>
+              <ZonePanel isMobile />
+            </div>
           </div>
+
+          {/* Pin detail overlay — slides up over any tab when a pin is selected */}
+          {selectedLeadPinId && (
+            <div
+              style={{
+                position: 'absolute', inset: 0, background: 'var(--bg-primary)',
+                zIndex: 50, overflowY: 'auto',
+              }}
+            >
+              <LeadPinPanel />
+            </div>
+          )}
 
           {/* Route tab */}
           <div
