@@ -415,6 +415,13 @@ function Dashboard() {
                 </ErrorBoundary>
               </div>
 
+              {/* Lead pins */}
+              <div>
+                <ErrorBoundary>
+                  <LeadPinPanel />
+                </ErrorBoundary>
+              </div>
+
               {/* Zone panel */}
               <div>
                 <ZonePanel />
@@ -422,38 +429,6 @@ function Dashboard() {
         </div>
       </div>
 
-      {/* Pin detail overlay — fixed fullscreen for desktop too */}
-      {selectedLeadPinId && (
-        <div
-          style={{
-            position: 'fixed', inset: 0, background: 'var(--bg-primary)',
-            zIndex: 200, overflowY: 'auto',
-            display: 'flex', flexDirection: 'column',
-          }}
-        >
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 12,
-            padding: '12px 16px', borderBottom: '1px solid var(--border-primary)',
-            flexShrink: 0, background: 'var(--bg-primary)',
-          }}>
-            <button
-              onClick={() => { useAppStore.getState().setSelectedLeadPinId(null) }}
-              style={{
-                background: 'none', border: 'none', color: '#2563eb',
-                fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: 0,
-              }}
-            >
-              &larr; Back
-            </button>
-            <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Pin Detail</span>
-          </div>
-          <div style={{ flex: 1, overflowY: 'auto', maxWidth: 600, width: '100%', margin: '0 auto' }}>
-            <ErrorBoundary>
-              <LeadPinPanel />
-            </ErrorBoundary>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
