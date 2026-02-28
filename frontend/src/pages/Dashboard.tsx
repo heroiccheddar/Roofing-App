@@ -152,23 +152,6 @@ function Dashboard() {
             </div>
           </div>
 
-          {/* Pin detail overlay — slides up over any tab when a pin is selected */}
-          {selectedLeadPinId && (
-            <div
-              style={{
-                position: 'absolute', inset: 0, background: 'var(--bg-primary)',
-                zIndex: 50, overflowY: 'auto',
-                border: '3px solid #ef4444',
-              }}
-            >
-              {/* DEBUG: bright banner to confirm overlay renders */}
-              <div style={{ background: '#ef4444', color: '#fff', padding: '6px 12px', fontSize: 12, fontWeight: 700 }}>
-                PIN DETAIL OVERLAY — pin: {selectedLeadPinId.slice(0, 8)}
-              </div>
-              <LeadPinPanel />
-            </div>
-          )}
-
           {/* Route tab */}
           <div
             style={{
@@ -182,6 +165,40 @@ function Dashboard() {
             </ErrorBoundary>
           </div>
         </div>
+
+        {/* Pin detail overlay — fixed fullscreen so it can't be clipped */}
+        {selectedLeadPinId && (
+          <div
+            style={{
+              position: 'fixed', inset: 0, background: 'var(--bg-primary)',
+              zIndex: 200, overflowY: 'auto',
+              display: 'flex', flexDirection: 'column',
+            }}
+          >
+            {/* Close bar */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '10px 14px', borderBottom: '1px solid var(--border-primary)',
+              flexShrink: 0, background: 'var(--bg-primary)',
+            }}>
+              <button
+                onClick={() => { useAppStore.getState().setSelectedLeadPinId(null) }}
+                style={{
+                  background: 'none', border: 'none', color: '#2563eb',
+                  fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: 0,
+                }}
+              >
+                &larr; Back
+              </button>
+              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Pin Detail</span>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              <ErrorBoundary>
+                <LeadPinPanel />
+              </ErrorBoundary>
+            </div>
+          </div>
+        )}
 
         {/* Bottom tab bar */}
         <div
@@ -355,16 +372,6 @@ function Dashboard() {
 
         {/* Sidebar body — scrollable */}
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          {selectedLeadPinId ? (
-            /* Pin detail takes over the sidebar when a pin is selected */
-            <div style={{ flex: 1, overflowY: 'auto', border: '3px solid #ef4444' }}>
-              {/* DEBUG */}
-              <div style={{ background: '#ef4444', color: '#fff', padding: '6px 12px', fontSize: 12, fontWeight: 700 }}>
-                DESKTOP PIN DETAIL — pin: {selectedLeadPinId.slice(0, 8)}
-              </div>
-              <LeadPinPanel />
-            </div>
-          ) : (
             <>
               {/* RecommendationCard above the zone panel */}
               <div style={{ padding: '10px 12px 0', flexShrink: 0 }}>
@@ -399,9 +406,41 @@ function Dashboard() {
                 <ZonePanel />
               </div>
             </>
-          )}
         </div>
       </div>
+
+      {/* Pin detail overlay — fixed fullscreen for desktop too */}
+      {selectedLeadPinId && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, background: 'var(--bg-primary)',
+            zIndex: 200, overflowY: 'auto',
+            display: 'flex', flexDirection: 'column',
+          }}
+        >
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 12,
+            padding: '12px 16px', borderBottom: '1px solid var(--border-primary)',
+            flexShrink: 0, background: 'var(--bg-primary)',
+          }}>
+            <button
+              onClick={() => { useAppStore.getState().setSelectedLeadPinId(null) }}
+              style={{
+                background: 'none', border: 'none', color: '#2563eb',
+                fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: 0,
+              }}
+            >
+              &larr; Back
+            </button>
+            <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Pin Detail</span>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', maxWidth: 600, width: '100%', margin: '0 auto' }}>
+            <ErrorBoundary>
+              <LeadPinPanel />
+            </ErrorBoundary>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
