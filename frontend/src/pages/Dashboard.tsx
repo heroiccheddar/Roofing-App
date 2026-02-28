@@ -92,6 +92,10 @@ function Dashboard() {
           }}
         >
           <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>RoofIQ</span>
+          {/* DEBUG: remove after confirming overlay works */}
+          <span style={{ fontSize: 9, color: '#ef4444', marginLeft: 6 }}>
+            pin:{selectedLeadPinId ? selectedLeadPinId.slice(0, 8) : 'none'}
+          </span>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <button
               onClick={toggleDarkMode}
@@ -154,8 +158,13 @@ function Dashboard() {
               style={{
                 position: 'absolute', inset: 0, background: 'var(--bg-primary)',
                 zIndex: 50, overflowY: 'auto',
+                border: '3px solid #ef4444',
               }}
             >
+              {/* DEBUG: bright banner to confirm overlay renders */}
+              <div style={{ background: '#ef4444', color: '#fff', padding: '6px 12px', fontSize: 12, fontWeight: 700 }}>
+                PIN DETAIL OVERLAY — pin: {selectedLeadPinId.slice(0, 8)}
+              </div>
               <LeadPinPanel />
             </div>
           )}
@@ -348,7 +357,11 @@ function Dashboard() {
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           {selectedLeadPinId ? (
             /* Pin detail takes over the sidebar when a pin is selected */
-            <div style={{ flex: 1, overflowY: 'auto' }}>
+            <div style={{ flex: 1, overflowY: 'auto', border: '3px solid #ef4444' }}>
+              {/* DEBUG */}
+              <div style={{ background: '#ef4444', color: '#fff', padding: '6px 12px', fontSize: 12, fontWeight: 700 }}>
+                DESKTOP PIN DETAIL — pin: {selectedLeadPinId.slice(0, 8)}
+              </div>
               <LeadPinPanel />
             </div>
           ) : (
