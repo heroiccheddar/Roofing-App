@@ -35,7 +35,9 @@ interface AppState {
   pendingPinLocation: { lat: number; lon: number; address?: string; property_id?: string; lead_zone_id?: string } | null
   flyToCoords: { lat: number; lon: number; zoom?: number } | null
   showTeamPins: boolean
+  heatmapMode: 'off' | 'pins' | 'zones'
   setShowTeamPins: (show: boolean) => void
+  setHeatmapMode: (mode: 'off' | 'pins' | 'zones') => void
   setUser: (user: User | null) => void
   setToken: (token: string | null) => void
   setSelectedZoneId: (zoneId: string | null) => void
@@ -90,6 +92,7 @@ const useAppStore = create<AppState>((set) => ({
   pendingPinLocation: null,
   flyToCoords: null,
   showTeamPins: false,
+  heatmapMode: 'off' as const,
 
   // Actions
   setUser: (user) => set({ user }),
@@ -128,6 +131,7 @@ const useAppStore = create<AppState>((set) => ({
   setPendingPinLocation: (loc) => set({ pendingPinLocation: loc }),
   setFlyToCoords: (coords) => set({ flyToCoords: coords }),
   setShowTeamPins: (show) => set({ showTeamPins: show }),
+  setHeatmapMode: (mode) => set({ heatmapMode: mode }),
   logout: () => {
     clearAuthToken()
     sessionStorage.removeItem('roofiq_home_lat')

@@ -75,6 +75,9 @@ function MapView() {
   const setPendingPinLocation = useAppStore((s) => s.setPendingPinLocation)
   const flyToCoords = useAppStore((s) => s.flyToCoords)
   const setFlyToCoords = useAppStore((s) => s.setFlyToCoords)
+  const heatmapMode = useAppStore((s) => s.heatmapMode)
+  const setHeatmapMode = useAppStore((s) => s.setHeatmapMode)
+  const darkMode = useAppStore((s) => s.darkMode)
   const { data: leadPinsGeoJSON } = useLeadPinsGeoJSON()
   const { data: propertyPointsGeoJSON } = usePropertyPointsGeoJSON()
   const { data: tractsGeojson } = useZoneTracts(selectedZoneId)
@@ -92,6 +95,21 @@ function MapView() {
     })
     return { ...geojson, features: filtered }
   }, [geojson, homeLat, homeLon, maxDistanceMiles])
+
+  // Derive zone centroid points for heatmap layer
+  const zoneCentroidsGeoJSON = useMemo(() => {
+    if (!filteredGeojson?.features) return { type: 'FeatureCollection' as const, features: [] as any[] }
+    return {
+      type: 'FeatureCollection' as const,
+      features: filteredGeojson.features
+        .filter((f: any) => f.properties?.centroid_lat && f.properties?.centroid_lon)
+        .map((f: any) => ({
+          type: 'Feature' as const,
+          geometry: { type: 'Point' as const, coordinates: [f.properties.centroid_lon, f.properties.centroid_lat] },
+          properties: { composite_score: f.properties.composite_score ?? 0 },
+        })),
+    }
+  }, [filteredGeojson])
 
   useEffect(() => {
     if (!mapContainer.current || mapRef.current) return
@@ -323,6 +341,67 @@ function MapView() {
         },
       })
 
+      // Heatmap layer: pins (on existing lead-pins source)
+      map.addLayer({
+        id: 'heatmap-pins',
+        type: 'heatmap',
+        source: 'lead-pins',
+        layout: { visibility: 'none' },
+        paint: {
+          'heatmap-weight': [
+            'match', ['get', 'disposition'],
+            'contract_signed', 1.0,
+            'inspection_set', 0.8,
+            'interested', 0.6,
+            'callback', 0.4,
+            'not_home', 0.2,
+            'not_interested', 0.1,
+            0.3,
+          ] as any,
+          'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 8, 1, 15, 3] as any,
+          'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 8, 20, 15, 40] as any,
+          'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 12, 0.8, 16, 0.4] as any,
+          'heatmap-color': [
+            'interpolate', ['linear'], ['heatmap-density'],
+            0, 'rgba(0,0,255,0)',
+            0.2, 'rgb(0,150,255)',
+            0.4, 'rgb(0,220,200)',
+            0.6, 'rgb(255,220,0)',
+            0.8, 'rgb(255,120,0)',
+            1, 'rgb(255,30,0)',
+          ] as any,
+        },
+      })
+
+      // Zone centroids source for heatmap
+      map.addSource('zone-centroids', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      })
+
+      // Heatmap layer: zones (on zone-centroids source)
+      map.addLayer({
+        id: 'heatmap-zones',
+        type: 'heatmap',
+        source: 'zone-centroids',
+        layout: { visibility: 'none' },
+        paint: {
+          'heatmap-weight': ['interpolate', ['linear'], ['get', 'composite_score'], 0, 0, 100, 1] as any,
+          'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 5, 0.5, 10, 2] as any,
+          'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 5, 30, 10, 60] as any,
+          'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0.7, 14, 0.3] as any,
+          'heatmap-color': [
+            'interpolate', ['linear'], ['heatmap-density'],
+            0, 'rgba(0,0,255,0)',
+            0.2, 'rgb(0,150,255)',
+            0.4, 'rgb(0,220,200)',
+            0.6, 'rgb(255,220,0)',
+            0.8, 'rgb(255,120,0)',
+            1, 'rgb(255,30,0)',
+          ] as any,
+        },
+      })
+
       // Click handler for existing pins
       map.on('click', 'lead-pins-circles', (e) => {
         if (e.features && e.features.length > 0) {
@@ -485,7 +564,12 @@ function MapView() {
     if (source) {
       source.setData(filteredGeojson as any)
     }
-  }, [filteredGeojson, mapLoaded])
+    // Also update zone centroids for heatmap
+    const centroidSource = map.getSource('zone-centroids') as mapboxgl.GeoJSONSource | undefined
+    if (centroidSource) {
+      centroidSource.setData(zoneCentroidsGeoJSON as any)
+    }
+  }, [filteredGeojson, zoneCentroidsGeoJSON, mapLoaded])
 
   // Fit bounds once on first load — only when no home location is set
   // (if home is set, the map already initialized centered on it)
@@ -665,6 +749,15 @@ function MapView() {
     }
   }, [propertyPointsGeoJSON, mapLoaded])
 
+  // Toggle heatmap layer visibility based on store state
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoaded) return
+    if (!map.getLayer('heatmap-pins') || !map.getLayer('heatmap-zones')) return
+    map.setLayoutProperty('heatmap-pins', 'visibility', heatmapMode === 'pins' ? 'visible' : 'none')
+    map.setLayoutProperty('heatmap-zones', 'visibility', heatmapMode === 'zones' ? 'visible' : 'none')
+  }, [heatmapMode, mapLoaded])
+
   // Show home marker
   useEffect(() => {
     const map = mapRef.current
@@ -696,6 +789,35 @@ function MapView() {
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div ref={mapContainer} style={{ width: '100%', height: '100%' }} />
+      {/* Heatmap toggle */}
+      <div style={{
+        position: 'absolute', top: 10, left: 10, zIndex: 10,
+        display: 'flex', gap: 0,
+        background: darkMode ? 'rgba(15,23,42,0.85)' : 'rgba(255,255,255,0.9)',
+        borderRadius: 8,
+        boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
+        border: `1px solid ${darkMode ? '#334155' : '#e2e8f0'}`,
+        overflow: 'hidden',
+      }}>
+        {(['off', 'pins', 'zones'] as const).map((mode) => (
+          <button
+            key={mode}
+            onClick={() => setHeatmapMode(mode)}
+            style={{
+              padding: '5px 10px',
+              fontSize: 11,
+              fontWeight: 600,
+              border: 'none',
+              cursor: 'pointer',
+              background: heatmapMode === mode ? '#2563eb' : 'transparent',
+              color: heatmapMode === mode ? '#fff' : (darkMode ? '#94a3b8' : '#64748b'),
+              borderRight: mode !== 'zones' ? `1px solid ${darkMode ? '#334155' : '#e2e8f0'}` : 'none',
+            }}
+          >
+            {mode === 'off' ? 'Off' : mode === 'pins' ? 'Pins' : 'Zones'}
+          </button>
+        ))}
+      </div>
       {geojsonLoading && !geojson && <MapSpinner />}
       {geojsonError && (
         <div style={{
