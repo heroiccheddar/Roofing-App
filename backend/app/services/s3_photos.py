@@ -24,10 +24,16 @@ def get_s3_client():
 
 
 def photo_url(s3_key: str) -> str:
-    """Construct public S3 URL from key."""
-    return (
-        f"https://{settings.S3_PHOTO_BUCKET}.s3.{settings.S3_PHOTO_REGION}"
-        f".amazonaws.com/{s3_key}"
+    """Generate a presigned URL for the photo (valid for 1 hour).
+
+    No public bucket policy needed — the presigned URL grants temporary
+    read access using the server's AWS credentials.
+    """
+    client = get_s3_client()
+    return client.generate_presigned_url(
+        "get_object",
+        Params={"Bucket": settings.S3_PHOTO_BUCKET, "Key": s3_key},
+        ExpiresIn=3600,
     )
 
 
