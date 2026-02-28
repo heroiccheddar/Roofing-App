@@ -50,6 +50,24 @@ export default defineConfig({
               cacheableResponse: { statuses: [0, 200] },
             },
           },
+          {
+            urlPattern: /\/api\/v1\/leads\/geojson/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'lead-pins-geojson',
+              expiration: { maxEntries: 10, maxAgeSeconds: 1800 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
+            urlPattern: /\/api\/v1\/leads\/[a-f0-9-]+$/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'lead-pin-detail',
+              expiration: { maxEntries: 50, maxAgeSeconds: 1800 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
         ],
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
       },

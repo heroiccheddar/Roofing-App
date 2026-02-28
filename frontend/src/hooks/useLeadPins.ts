@@ -10,7 +10,8 @@ import {
   getLeadPinActivities,
   createLeadPinActivity,
 } from '../api/client'
-import type { LeadPinCreate, LeadPinUpdate, PinActivityCreate } from '../types/api'
+import type { LeadPinCreate, LeadPinUpdate, PinActivityCreate, LeadPinResponse, PinActivityResponse } from '../types/api'
+import { enqueueOfflineAction } from './useOfflineQueue'
 import useAppStore from '../stores/appStore'
 
 export function useLeadPinDetail(pinId: string | null) {
@@ -54,7 +55,25 @@ export function useLeadPinCallbacks() {
 export function useCreateLeadPin() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (data: LeadPinCreate) => createLeadPin(data),
+    mutationFn: async (data: LeadPinCreate) => {
+      if (!navigator.onLine) {
+        await enqueueOfflineAction('create_pin', data)
+        return {
+          id: `pending_${Date.now()}`,
+          roofer_account_id: '',
+          lat: data.lat,
+          lon: data.lon,
+          address: data.address,
+          disposition: data.disposition,
+          notes: data.notes,
+          lead_zone_id: data.lead_zone_id,
+          property_id: data.property_id,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        } as LeadPinResponse
+      }
+      return createLeadPin(data)
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['lead-pins'] })
       queryClient.invalidateQueries({ queryKey: ['lead-pins-geojson'] })
@@ -67,8 +86,13 @@ export function useCreateLeadPin() {
 export function useUpdateLeadPin() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ pinId, data }: { pinId: string; data: LeadPinUpdate }) =>
-      updateLeadPin(pinId, data),
+    mutationFn: async ({ pinId, data }: { pinId: string; data: LeadPinUpdate }) => {
+      if (!navigator.onLine) {
+        await enqueueOfflineAction('update_pin', { pinId, data })
+        return { id: pinId, ...data } as LeadPinResponse
+      }
+      return updateLeadPin(pinId, data)
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['lead-pins'] })
       queryClient.invalidateQueries({ queryKey: ['lead-pin'] })
@@ -97,8 +121,19 @@ export function useDeleteLeadPin() {
 export function useCreatePinActivity() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ pinId, data }: { pinId: string; data: PinActivityCreate }) =>
-      createLeadPinActivity(pinId, data),
+    mutationFn: async ({ pinId, data }: { pinId: string; data: PinActivityCreate }) => {
+      if (!navigator.onLine) {
+        await enqueueOfflineAction('create_activity', { pinId, data })
+        return {
+          id: `pending_${Date.now()}`,
+          lead_pin_id: pinId,
+          disposition: 'not_home',
+          notes: data.notes,
+          created_at: new Date().toISOString(),
+        } as PinActivityResponse
+      }
+      return createLeadPinActivity(pinId, data)
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['lead-pin-activities'] })
     },
