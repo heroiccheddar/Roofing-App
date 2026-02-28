@@ -21,6 +21,7 @@ export default function Settings() {
 
   // Service area state
   const [saCity, setSaCity] = useState('')
+  const [saState, setSaState] = useState('')
   const [saRadiusMiles, setSaRadiusMiles] = useState('50')
   const [saLoading, setSaLoading] = useState(false)
   const [saMsg, setSaMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -40,14 +41,18 @@ export default function Settings() {
 
   const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || ''
 
-  // Reverse-geocode lat/lon → city name
-  const reverseGeocode = async (lat: number, lon: number): Promise<string> => {
+  // Reverse-geocode lat/lon → { city, state }
+  const reverseGeocode = async (lat: number, lon: number): Promise<{ city: string; state: string }> => {
     try {
       const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lon},${lat}.json?types=place&limit=1&access_token=${MAPBOX_TOKEN}`)
       const data = await res.json()
-      if (data.features?.length > 0) return data.features[0].place_name
+      if (data.features?.length > 0) {
+        const parts = (data.features[0].place_name as string).split(',').map((s: string) => s.trim())
+        // Mapbox place_name: "City, State, Country"
+        return { city: parts[0] || '', state: parts[1] || '' }
+      }
     } catch { /* fall through */ }
-    return `${lat.toFixed(4)}, ${lon.toFixed(4)}`
+    return { city: `${lat.toFixed(4)}, ${lon.toFixed(4)}`, state: '' }
   }
 
   // Forward-geocode city name → lat/lon
@@ -68,10 +73,11 @@ export default function Settings() {
       setAccount(acct)
       setCompanyName(acct.company_name)
       setPhoneNumber(acct.phone_number || '')
-      // Reverse-geocode service area centroid to a city name
+      // Reverse-geocode service area centroid to city + state
       if (acct.service_area_lat != null && acct.service_area_lon != null) {
-        const name = await reverseGeocode(acct.service_area_lat, acct.service_area_lon)
-        setSaCity(name)
+        const loc = await reverseGeocode(acct.service_area_lat, acct.service_area_lon)
+        setSaCity(loc.city)
+        setSaState(loc.state)
       }
       const prefs = acct.alert_preferences || {}
       setMinScore(prefs.min_score ?? 70)
@@ -108,17 +114,20 @@ export default function Settings() {
     setSaMsg(null)
     try {
       if (!saCity.trim()) throw new Error('Please enter a city')
+      if (!saState.trim()) throw new Error('Please enter a state')
       const radiusMiles = parseFloat(saRadiusMiles)
       if (isNaN(radiusMiles) || radiusMiles <= 0) throw new Error('Please enter a valid radius')
       const radiusKm = radiusMiles * 1.60934
-      const coords = await forwardGeocode(saCity.trim())
-      if (!coords) throw new Error('Could not find that location. Try a more specific city name.')
+      const query = `${saCity.trim()}, ${saState.trim()}`
+      const coords = await forwardGeocode(query)
+      if (!coords) throw new Error('Could not find that location. Check the city and state.')
       const updated = await updateServiceArea(coords.lat, coords.lon, radiusKm)
       setAccount(updated)
       if (updated.service_area_lat != null && updated.service_area_lon != null) {
         setHome(updated.service_area_lat, updated.service_area_lon)
-        const name = await reverseGeocode(updated.service_area_lat, updated.service_area_lon)
-        setSaCity(name)
+        const loc = await reverseGeocode(updated.service_area_lat, updated.service_area_lon)
+        setSaCity(loc.city)
+        setSaState(loc.state)
       }
       setSaMsg({ type: 'success', text: 'Service area updated' })
     } catch (err) {
@@ -137,8 +146,9 @@ export default function Settings() {
     setSaMsg(null)
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
-        const name = await reverseGeocode(pos.coords.latitude, pos.coords.longitude)
-        setSaCity(name)
+        const loc = await reverseGeocode(pos.coords.latitude, pos.coords.longitude)
+        setSaCity(loc.city)
+        setSaState(loc.state)
         setGeolocating(false)
       },
       (err) => {
@@ -379,15 +389,27 @@ export default function Settings() {
           <div style={cardStyle}>
             <h2 style={sectionTitleStyle}>Service Area</h2>
 
-            <div style={fieldWrapStyle}>
-              <label style={labelStyle}>Home City</label>
-              <input
-                type="text"
-                value={saCity}
-                onChange={(e) => setSaCity(e.target.value)}
-                style={inputStyle}
-                placeholder="e.g. Denver, CO"
-              />
+            <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
+              <div style={{ flex: 2 }}>
+                <label style={labelStyle}>City</label>
+                <input
+                  type="text"
+                  value={saCity}
+                  onChange={(e) => setSaCity(e.target.value)}
+                  style={inputStyle}
+                  placeholder="e.g. Denver"
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={labelStyle}>State</label>
+                <input
+                  type="text"
+                  value={saState}
+                  onChange={(e) => setSaState(e.target.value)}
+                  style={inputStyle}
+                  placeholder="e.g. Colorado"
+                />
+              </div>
             </div>
 
             <div style={{ display: 'flex', gap: 12, marginBottom: 14, alignItems: 'flex-end' }}>
