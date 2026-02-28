@@ -581,6 +581,7 @@ function LeadPinPanel() {
   const selectedLeadPinId = useAppStore((s) => s.selectedLeadPinId)
   const setSelectedLeadPinId = useAppStore((s) => s.setSelectedLeadPinId)
 
+  const [expanded, setExpanded] = useState(true)
   const { data: pinsData, isLoading: pinsLoading } = useLeadPins()
 
   // Direct fetch for the selected pin (used when pin isn't in the bbox list)
@@ -597,66 +598,45 @@ function LeadPinPanel() {
     ? pinsData?.pins.find((p) => p.id === selectedLeadPinId) ?? pinDetail ?? null
     : null
 
-  // When a pin is selected, show its detail (or loading/error state)
-  if (selectedLeadPinId) {
-    if (selectedPin) {
-      return (
-        <div style={{ padding: 16 }}>
-          <PinDetail
-            pin={selectedPin}
-            onBack={() => setSelectedLeadPinId(null)}
-          />
-        </div>
-      )
-    }
-
-    // Loading or error fallback — always show Back button
-    return (
-      <div style={{ padding: 16 }}>
-        <button
-          onClick={() => setSelectedLeadPinId(null)}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: '#2563eb',
-            cursor: 'pointer',
-            fontSize: 14,
-            padding: 0,
-            marginBottom: 12,
-          }}
-        >
-          Back to list
-        </button>
-        <div style={{ fontSize: 13, color: textSecondary, textAlign: 'center', padding: 24 }}>
-          {pinDetailError
-            ? `Failed to load pin: ${pinDetailError instanceof Error ? pinDetailError.message : 'Unknown error'}`
-            : 'Loading pin...'}
-        </div>
-      </div>
-    )
-  }
+  const pinCount = pinsData?.total ?? 0
 
   return (
-    <div style={{ padding: 16 }}>
+    <div style={{ borderBottom: `1px solid ${borderColor}` }}>
+
+      {/* Collapsible header */}
+      {!selectedLeadPinId && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '10px 16px',
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            color: textPrimary,
+            fontSize: 14,
+            fontWeight: 700,
+          }}
+        >
+          <span>Lead Pins{pinCount > 0 ? ` (${pinCount})` : ''}</span>
+          <span style={{ fontSize: 11, color: textSecondary }}>
+            {expanded ? '▲' : '▼'}
+          </span>
+        </button>
+      )}
 
       {/* Pin list view — show when no pin is selected */}
-      {!selectedLeadPinId && (
-        <>
-          {/* Header row with pin-drop toggle */}
+      {!selectedLeadPinId && expanded && (
+        <div style={{ padding: '0 16px 16px' }}>
+          {/* Pin-drop toggle */}
           <div style={{
             display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
+            justifyContent: 'flex-end',
             marginBottom: 14,
           }}>
-            <h3 style={{
-              margin: 0,
-              fontSize: 15,
-              fontWeight: 700,
-              color: textPrimary,
-            }}>
-              Lead Pins
-            </h3>
             <button
               onClick={() => setIsPinDropMode(!isPinDropMode)}
               style={{
@@ -779,7 +759,40 @@ function LeadPinPanel() {
               </div>
             </>
           )}
-        </>
+        </div>
+      )}
+
+      {/* Pin detail — always visible when selected, regardless of collapsed state */}
+      {selectedLeadPinId && selectedPin && (
+        <div style={{ padding: 16 }}>
+          <PinDetail
+            pin={selectedPin}
+            onBack={() => setSelectedLeadPinId(null)}
+          />
+        </div>
+      )}
+      {selectedLeadPinId && !selectedPin && (
+        <div style={{ padding: 16 }}>
+          <button
+            onClick={() => setSelectedLeadPinId(null)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#2563eb',
+              cursor: 'pointer',
+              fontSize: 14,
+              padding: 0,
+              marginBottom: 12,
+            }}
+          >
+            Back to list
+          </button>
+          <div style={{ fontSize: 13, color: textSecondary, textAlign: 'center', padding: 24 }}>
+            {pinDetailError
+              ? `Failed to load pin: ${pinDetailError instanceof Error ? pinDetailError.message : 'Unknown error'}`
+              : 'Loading pin...'}
+          </div>
+        </div>
       )}
     </div>
   )

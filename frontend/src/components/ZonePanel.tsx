@@ -1,10 +1,9 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useAppStore from '../stores/appStore'
 import { useZoneList, useZoneDetail } from '../hooks/useZones'
 import FeedbackForm from './FeedbackForm'
 import CanvassTracker from './CanvassTracker'
-import LeadPinPanel from './LeadPinPanel'
 import { haversineKm, formatDistance } from '../utils/distance'
 import { scoreColor, ordinal } from '../utils/zoneFormatters'
 import { InfoTip, Stat, ExposureBar, SubScoreBar, RiskBadge, FreshnessBadge } from './ZoneDetailHelpers'
@@ -27,6 +26,7 @@ function ZonePanel({ isMobile = false }: { isMobile?: boolean }) {
   const setSortBy = useAppStore((s) => s.setSortBy)
   const toggleZoneInRoute = useAppStore((s) => s.toggleZoneInRoute)
   const routeZoneIds = useAppStore((s) => s.routeZoneIds)
+  const [zonesExpanded, setZonesExpanded] = useState(false)
   const { data: zoneList, isLoading: listLoading, error: listError } = useZoneList()
   const { data: detail, isLoading: detailLoading } = useZoneDetail(selectedZoneId)
 
@@ -492,22 +492,41 @@ function ZonePanel({ isMobile = false }: { isMobile?: boolean }) {
           <FeedbackForm zoneId={selectedZoneId} />
         </div>
 
-        {/* Lead Pins — visible in detail view too */}
-        <div id="lead-pin-panel" style={{
-          borderTop: '1px solid var(--border-primary)',
-          marginTop: 12,
-        }}>
-          <LeadPinPanel />
-        </div>
       </div>
     )
   }
 
   // Zone list view
+  const zoneCount = sortedZones.length
+
   return (
-    <div style={{ ...styles.panel }}>
+    <div style={{ borderBottom: '1px solid var(--border-primary)' }}>
+      {/* Collapsible header */}
+      <button
+        onClick={() => setZonesExpanded(!zonesExpanded)}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '10px 16px',
+          background: 'transparent',
+          border: 'none',
+          cursor: 'pointer',
+          color: 'var(--text-primary)',
+          fontSize: 14,
+          fontWeight: 700,
+        }}
+      >
+        <span>Lead Zones{zoneCount > 0 ? ` (${zoneCount})` : ''}</span>
+        <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+          {zonesExpanded ? '▲' : '▼'}
+        </span>
+      </button>
+
+      {zonesExpanded && (
+      <div style={{ ...styles.panel, paddingTop: 0 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h2 style={{ ...styles.heading, margin: 0 }}>Lead Zones</h2>
         <div style={{ display: 'flex', gap: 2, background: 'var(--bg-tertiary)', borderRadius: 6, padding: 2 }}>
           {(['cards', 'table'] as const).map((mode) => (
             <button
@@ -718,15 +737,8 @@ function ZonePanel({ isMobile = false }: { isMobile?: boolean }) {
         </p>
       )}
       </div>
-
-      {/* Lead Pins section — always visible in the list view */}
-      <div id="lead-pin-panel" style={{
-        borderTop: '1px solid var(--border-primary)',
-        marginTop: 8,
-        flexShrink: 0,
-      }}>
-        <LeadPinPanel />
       </div>
+      )}
     </div>
   )
 }
