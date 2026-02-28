@@ -8,13 +8,14 @@ import ErrorBoundary from '../components/ErrorBoundary'
 import FollowUpQueue from '../components/FollowUpQueue'
 import TeamPanel from '../components/TeamPanel'
 import LeaderboardPanel from '../components/LeaderboardPanel'
+import AnalyticsPanel from '../components/AnalyticsPanel'
 import useAppStore from '../stores/appStore'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { useDarkMode } from '../hooks/useDarkMode'
 import { useOfflineQueue } from '../hooks/useOfflineQueue'
 import { useServiceWorker } from '../hooks/useServiceWorker'
 
-type MobileTab = 'map' | 'zones' | 'route'
+type MobileTab = 'map' | 'zones' | 'route' | 'stats'
 
 function Dashboard() {
   const logout = useAppStore((s) => s.logout)
@@ -160,6 +161,19 @@ function Dashboard() {
               <RoutePanel />
             </ErrorBoundary>
           </div>
+
+          {/* Stats tab */}
+          <div
+            style={{
+              position: 'absolute', inset: 0, background: 'var(--bg-primary)',
+              display: mobileTab === 'stats' ? 'flex' : 'none',
+              flexDirection: 'column', overflow: 'auto',
+            }}
+          >
+            <ErrorBoundary>
+              <AnalyticsPanel defaultExpanded />
+            </ErrorBoundary>
+          </div>
         </div>
 
         {/* Pin detail overlay — fixed fullscreen so it can't be clipped */}
@@ -252,6 +266,24 @@ function Dashboard() {
               <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
             </svg>
             Route
+          </button>
+
+          {/* Stats tab button */}
+          <button
+            onClick={() => setMobileTab('stats')}
+            style={{
+              flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
+              gap: 2, padding: '8px 0', border: 'none', background: 'none', cursor: 'pointer',
+              color: mobileTab === 'stats' ? 'var(--accent-blue)' : 'var(--text-tertiary)',
+              fontSize: 11, fontWeight: mobileTab === 'stats' ? 600 : 400,
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="20" x2="18" y2="10" />
+              <line x1="12" y1="20" x2="12" y2="4" />
+              <line x1="6" y1="20" x2="6" y2="14" />
+            </svg>
+            Stats
           </button>
         </div>
       </div>
@@ -387,6 +419,13 @@ function Dashboard() {
               <div style={{ flexShrink: 0 }}>
                 <ErrorBoundary>
                   <LeaderboardPanel />
+                </ErrorBoundary>
+              </div>
+
+              {/* Analytics panel */}
+              <div style={{ flexShrink: 0 }}>
+                <ErrorBoundary>
+                  <AnalyticsPanel />
                 </ErrorBoundary>
               </div>
 

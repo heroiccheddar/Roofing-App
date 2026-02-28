@@ -588,3 +588,31 @@ export interface PinPhotoListResponse {
   photos: PinPhotoResponse[]
   count: number
 }
+
+// ===== Analytics =====
+export interface AnalyticsSummary {
+  total_pins: number
+  contracts_signed: number
+  conversion_rate: number
+  callbacks_pending: number
+  inspections_set: number
+  avg_pins_per_day: number
+}
+
+export interface DailyActivity {
+  date: string
+  pins_created: number
+  contracts_signed: number
+}
+
+export interface FunnelStage {
+  stage: string
+  count: number
+}
+
+export interface AnalyticsDashboardResponse {
+  period: string
+  summary: AnalyticsSummary
+  daily_activity: DailyActivity[]
+  funnel: FunnelStage[]
+}

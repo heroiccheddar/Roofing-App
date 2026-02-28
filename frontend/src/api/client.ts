@@ -51,6 +51,7 @@ import type {
   LeaderboardResponse,
   PinPhotoResponse,
   PinPhotoListResponse,
+  AnalyticsDashboardResponse,
 } from '../types/api';
 
 // ===== Configuration =====
@@ -505,6 +506,12 @@ export async function getLeaderboard(
   return apiFetch<LeaderboardResponse>('/api/v1/metrics/leaderboard', {
     params: { period },
   })
+}
+
+export async function getAnalyticsDashboard(period?: string): Promise<AnalyticsDashboardResponse> {
+  const params: Record<string, string> = {}
+  if (period) params.period = period
+  return apiFetch<AnalyticsDashboardResponse>('/api/v1/analytics/dashboard', { params })
 }
 
 // ===== Pin Photos =====
