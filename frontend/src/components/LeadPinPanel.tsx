@@ -730,7 +730,7 @@ function LeadPinPanel() {
                 {pinsData.pins.map((pin) => (
                   <button
                     key={pin.id}
-                    onClick={() => { console.log('[LeadPinPanel] Pin clicked:', pin.id); setSelectedLeadPinId(pin.id) }}
+                    onClick={() => setSelectedLeadPinId(pin.id)}
                     style={{
                       width: '100%',
                       padding: '10px 12px',

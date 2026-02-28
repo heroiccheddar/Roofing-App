@@ -92,10 +92,6 @@ function Dashboard() {
           }}
         >
           <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>RoofIQ</span>
-          {/* DEBUG: remove after confirming overlay works */}
-          <span style={{ fontSize: 9, color: '#ef4444', marginLeft: 6 }}>
-            pin:{selectedLeadPinId ? selectedLeadPinId.slice(0, 8) : 'none'}
-          </span>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <button
               onClick={toggleDarkMode}

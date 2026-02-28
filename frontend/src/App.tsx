@@ -1,7 +1,8 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import LoadingSpinner from './components/LoadingSpinner'
 import useAppStore from './stores/appStore'
+import { getAccount } from './api/client'
 import { DispositionPicker } from './components/LeadPinPanel'
 import { useCreateLeadPin } from './hooks/useLeadPins'
 import type { LeadPinDisposition } from './types/api'
@@ -66,7 +67,27 @@ function PendingPinCreator() {
 
 function App() {
   const token = useAppStore((state) => state.token)
+  const user = useAppStore((s) => s.user)
+  const setUser = useAppStore((s) => s.setUser)
+  const setHome = useAppStore((s) => s.setHome)
   const isAuthenticated = !!token
+
+  // Restore user profile on page refresh (token persists but user object doesn't)
+  useEffect(() => {
+    if (token && !user) {
+      getAccount()
+        .then((profile) => {
+          setUser({ id: profile.id, email: profile.email, companyName: profile.company_name })
+          if (profile.service_area_lat != null && profile.service_area_lon != null) {
+            setHome(profile.service_area_lat, profile.service_area_lon)
+          }
+        })
+        .catch(() => {
+          // Token expired or invalid — force re-login
+          useAppStore.getState().logout()
+        })
+    }
+  }, [token, user, setUser, setHome])
 
   return (
     <BrowserRouter>
