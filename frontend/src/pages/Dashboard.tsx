@@ -20,14 +20,13 @@ type MobileTab = 'map' | 'zones' | 'route' | 'stats'
 
 function Dashboard() {
   const navigate = useNavigate()
-  const logout = useAppStore((s) => s.logout)
   const user = useAppStore((s) => s.user)
   const isMobile = useMediaQuery('(max-width: 767px)')
   const [mobileTab, setMobileTab] = useState<MobileTab>('map')
 
   const selectedLeadPinId = useAppStore((s) => s.selectedLeadPinId)
 
-  const { darkMode, toggleDarkMode } = useDarkMode()
+  useDarkMode() // keep dark mode CSS class in sync
   const { isOnline, pendingCount } = useOfflineQueue()
   const { needsUpdate, update: updateSW } = useServiceWorker()
 
@@ -95,36 +94,15 @@ function Dashboard() {
           }}
         >
           <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>RoofIQ</span>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <button
-              onClick={() => navigate('/settings')}
-              style={{
-                background: 'none', border: '1px solid var(--border-primary)', borderRadius: 6,
-                padding: '4px 8px', fontSize: 13, cursor: 'pointer', color: 'var(--text-secondary)',
-              }}
-            >
-              Settings
-            </button>
-            <button
-              onClick={toggleDarkMode}
-              style={{
-                background: 'none', border: '1px solid var(--border-primary)', borderRadius: 6,
-                padding: '4px 8px', fontSize: 13, cursor: 'pointer', color: 'var(--text-secondary)',
-              }}
-              title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-            >
-              {darkMode ? 'Light' : 'Dark'}
-            </button>
-            <button
-              onClick={logout}
-              style={{
-                background: 'none', border: '1px solid var(--border-primary)', borderRadius: 6,
-                padding: '4px 10px', fontSize: 13, cursor: 'pointer', color: 'var(--text-secondary)',
-              }}
-            >
-              Logout
-            </button>
-          </div>
+          <button
+            onClick={() => navigate('/settings')}
+            style={{
+              background: 'none', border: '1px solid var(--border-primary)', borderRadius: 6,
+              padding: '4px 8px', fontSize: 13, cursor: 'pointer', color: 'var(--text-secondary)',
+            }}
+          >
+            Settings
+          </button>
         </div>
 
         {/* Content area — map, zones, or route */}
@@ -383,37 +361,19 @@ function Dashboard() {
           }}
         >
           <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)' }}>RoofIQ</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
             {user && (
-              <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{user.email}</span>
+              <span style={{ fontSize: 13, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{user.email}</span>
             )}
             <button
               onClick={() => navigate('/settings')}
               style={{
                 background: 'none', border: '1px solid var(--border-primary)', borderRadius: 6,
                 padding: '4px 8px', fontSize: 12, cursor: 'pointer', color: 'var(--text-secondary)',
+                flexShrink: 0,
               }}
             >
               Settings
-            </button>
-            <button
-              onClick={toggleDarkMode}
-              style={{
-                background: 'none', border: '1px solid var(--border-primary)', borderRadius: 6,
-                padding: '4px 8px', fontSize: 12, cursor: 'pointer', color: 'var(--text-secondary)',
-              }}
-              title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-            >
-              {darkMode ? 'Light' : 'Dark'}
-            </button>
-            <button
-              onClick={logout}
-              style={{
-                background: 'none', border: '1px solid var(--border-primary)', borderRadius: 6,
-                padding: '4px 10px', fontSize: 13, cursor: 'pointer', color: 'var(--text-secondary)',
-              }}
-            >
-              Logout
             </button>
           </div>
         </div>
