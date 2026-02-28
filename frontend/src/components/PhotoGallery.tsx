@@ -76,9 +76,9 @@ export default function PhotoGallery({ pinId, isOwner }: PhotoGalleryProps) {
       {/* Header with count and add button */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: textSecondary }}>
-          Photos {count > 0 && `(${count}/10)`}
+          Photos {count > 0 && `(${count})`}
         </span>
-        {isOwner && count < 10 && (
+        {isOwner && (
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploadMutation.isPending}

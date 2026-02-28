@@ -5,7 +5,7 @@ import uuid as uuid_mod
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -22,7 +22,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/photos", tags=["photos"])
 
 _MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
-_MAX_PHOTOS_PER_PIN = 10
 _ALLOWED_TYPES = {"image/jpeg", "image/png"}
 
 
@@ -59,7 +58,7 @@ async def upload_pin_photo(
     current_user: RooferAccount = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> PinPhotoResponse:
-    """Upload a photo to a lead pin. Max 5 MB, JPEG/PNG only, max 10 per pin."""
+    """Upload a photo to a lead pin. Max 5 MB, JPEG/PNG only."""
     if not settings.S3_PHOTO_BUCKET:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -89,16 +88,6 @@ async def upload_pin_photo(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="File size exceeds 5MB limit",
-        )
-
-    # Enforce per-pin photo cap
-    count_stmt = select(func.count(PinPhoto.id)).where(PinPhoto.lead_pin_id == pin_id)
-    count_result = await db.execute(count_stmt)
-    current_count = count_result.scalar() or 0
-    if current_count >= _MAX_PHOTOS_PER_PIN:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Maximum 10 photos per pin",
         )
 
     # Generate S3 key and upload
