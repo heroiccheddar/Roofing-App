@@ -25,6 +25,7 @@ function lazyRetry(factory: () => Promise<{ default: React.ComponentType }>) {
 const Dashboard = lazyRetry(() => import('./pages/Dashboard'))
 const Login = lazyRetry(() => import('./pages/Login'))
 const ZoneDetail = lazyRetry(() => import('./pages/ZoneDetail'))
+const Settings = lazyRetry(() => import('./pages/Settings'))
 
 function PendingPinCreator() {
   const pendingPinLocation = useAppStore((s) => s.pendingPinLocation)
@@ -102,6 +103,9 @@ function App() {
           } />
           <Route path="/zones/:id" element={
             isAuthenticated ? <ZoneDetail /> : <Navigate to="/login" />
+          } />
+          <Route path="/settings" element={
+            isAuthenticated ? <Settings /> : <Navigate to="/login" />
           } />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>

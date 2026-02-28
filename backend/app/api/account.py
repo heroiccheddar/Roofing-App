@@ -14,6 +14,7 @@ from app.models.roofer_account import RooferAccount
 from app.schemas.account import (
     AccountResponse,
     AlertPreferences,
+    ProfileUpdate,
     ServiceAreaUpdate,
 )
 
@@ -47,6 +48,34 @@ async def get_profile(
     Returns:
         AccountResponse: User account profile including preferences
     """
+    return _account_response(current_user)
+
+
+@router.patch("/profile", response_model=AccountResponse)
+async def update_profile(
+    body: ProfileUpdate,
+    current_user: RooferAccount = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> AccountResponse:
+    """Update the current user's profile fields.
+
+    Allows partial updates to company name and phone number.
+
+    Args:
+        body: Profile fields to update (only non-None fields are applied)
+        current_user: Authenticated user from JWT token
+        db: Database session
+
+    Returns:
+        AccountResponse: Updated account profile
+    """
+    if body.company_name is not None:
+        current_user.company_name = body.company_name
+    if body.phone_number is not None:
+        current_user.phone_number = body.phone_number
+
+    await db.commit()
+    await db.refresh(current_user)
     return _account_response(current_user)
 
 

@@ -11,6 +11,7 @@ import type {
   TokenResponse,
   AccountResponse,
   ServiceAreaUpdate,
+  ProfileUpdate,
   AlertPreferences,
   ZoneListParams,
   ZoneListResponse,
@@ -217,6 +218,13 @@ export async function updateAlertPreferences(
 
 export async function getAlertPreferences(): Promise<AlertPreferences> {
   return apiFetch<AlertPreferences>('/api/v1/account/alert-preferences');
+}
+
+export async function updateProfile(data: ProfileUpdate): Promise<AccountResponse> {
+  return apiFetch<AccountResponse>('/api/v1/account/profile', {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
 }
 
 // ===== Lead Zones =====

@@ -42,6 +42,11 @@ export interface ServiceAreaUpdate {
   radius_km: number;
 }
 
+export interface ProfileUpdate {
+  company_name?: string;
+  phone_number?: string;
+}
+
 export interface QuietHours {
   start: string; // HH:MM format
   end: string;   // HH:MM format

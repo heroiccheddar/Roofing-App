@@ -19,6 +19,13 @@ class ServiceAreaUpdate(BaseModel):
     )
 
 
+class ProfileUpdate(BaseModel):
+    """Request schema for updating profile fields."""
+
+    company_name: str | None = Field(None, min_length=1, max_length=200, description="Company name")
+    phone_number: str | None = Field(None, description="Phone number")
+
+
 class QuietHours(BaseModel):
     """Quiet hours configuration for alerts."""
 

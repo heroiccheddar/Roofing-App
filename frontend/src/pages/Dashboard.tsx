@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import MapView from '../components/MapView'
 import ZonePanel from '../components/ZonePanel'
 import LeadPinPanel from '../components/LeadPinPanel'
@@ -18,6 +19,7 @@ import { useServiceWorker } from '../hooks/useServiceWorker'
 type MobileTab = 'map' | 'zones' | 'route' | 'stats'
 
 function Dashboard() {
+  const navigate = useNavigate()
   const logout = useAppStore((s) => s.logout)
   const user = useAppStore((s) => s.user)
   const isMobile = useMediaQuery('(max-width: 767px)')
@@ -94,6 +96,15 @@ function Dashboard() {
         >
           <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>RoofIQ</span>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <button
+              onClick={() => navigate('/settings')}
+              style={{
+                background: 'none', border: '1px solid var(--border-primary)', borderRadius: 6,
+                padding: '4px 8px', fontSize: 13, cursor: 'pointer', color: 'var(--text-secondary)',
+              }}
+            >
+              Settings
+            </button>
             <button
               onClick={toggleDarkMode}
               style={{
@@ -376,6 +387,15 @@ function Dashboard() {
             {user && (
               <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{user.email}</span>
             )}
+            <button
+              onClick={() => navigate('/settings')}
+              style={{
+                background: 'none', border: '1px solid var(--border-primary)', borderRadius: 6,
+                padding: '4px 8px', fontSize: 12, cursor: 'pointer', color: 'var(--text-secondary)',
+              }}
+            >
+              Settings
+            </button>
             <button
               onClick={toggleDarkMode}
               style={{
