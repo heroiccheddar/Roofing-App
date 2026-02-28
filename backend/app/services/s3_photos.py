@@ -24,16 +24,18 @@ def get_s3_client():
 
 
 def photo_url(s3_key: str) -> str:
-    """Generate a presigned URL for the photo (valid for 1 hour).
+    """Generate a presigned URL for the photo (valid for 24 hours).
 
     No public bucket policy needed — the presigned URL grants temporary
-    read access using the server's AWS credentials.
+    read access using the server's AWS credentials. React Query refetches
+    on each pin detail open (staleTime 30s), so URLs are refreshed well
+    before the 24-hour window.
     """
     client = get_s3_client()
     return client.generate_presigned_url(
         "get_object",
         Params={"Bucket": settings.S3_PHOTO_BUCKET, "Key": s3_key},
-        ExpiresIn=3600,
+        ExpiresIn=86400,
     )
 
 
