@@ -45,8 +45,11 @@ interface DispositionPickerProps {
   initialDisposition?: LeadPinDisposition
   initialNotes?: string
   initialCallbackDate?: string
+  initialContactName?: string
+  initialContactPhone?: string
+  initialContactEmail?: string
   title: string
-  onConfirm: (disposition: LeadPinDisposition, notes: string, callbackDate?: string) => void
+  onConfirm: (disposition: LeadPinDisposition, notes: string, callbackDate?: string, contactName?: string, contactPhone?: string, contactEmail?: string) => void
   onCancel: () => void
   isLoading?: boolean
 }
@@ -55,6 +58,9 @@ export function DispositionPicker({
   initialDisposition,
   initialNotes = '',
   initialCallbackDate,
+  initialContactName,
+  initialContactPhone,
+  initialContactEmail,
   title,
   onConfirm,
   onCancel,
@@ -65,6 +71,9 @@ export function DispositionPicker({
   )
   const [notes, setNotes] = useState(initialNotes)
   const [callbackDate, setCallbackDate] = useState(initialCallbackDate || '')
+  const [contactName, setContactName] = useState(initialContactName || '')
+  const [contactPhone, setContactPhone] = useState(initialContactPhone || '')
+  const [contactEmail, setContactEmail] = useState(initialContactEmail || '')
   const darkMode = useAppStore((s) => s.darkMode)
 
   return (
@@ -162,6 +171,36 @@ export function DispositionPicker({
           </div>
         )}
 
+        {/* Contact info fields */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: darkMode ? '#94a3b8' : '#64748b', textTransform: 'uppercase', marginBottom: 6 }}>
+            Contact Info
+          </div>
+          <input
+            type="text"
+            placeholder="Name"
+            value={contactName}
+            onChange={(e) => setContactName(e.target.value)}
+            style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: `1px solid ${darkMode ? '#334155' : '#e2e8f0'}`, background: darkMode ? '#0f172a' : '#f8fafc', color: darkMode ? '#f1f5f9' : '#0f172a', fontSize: 13, marginBottom: 6, boxSizing: 'border-box' }}
+          />
+          <div style={{ display: 'flex', gap: 6 }}>
+            <input
+              type="tel"
+              placeholder="Phone"
+              value={contactPhone}
+              onChange={(e) => setContactPhone(e.target.value)}
+              style={{ flex: 1, padding: '8px 10px', borderRadius: 6, border: `1px solid ${darkMode ? '#334155' : '#e2e8f0'}`, background: darkMode ? '#0f172a' : '#f8fafc', color: darkMode ? '#f1f5f9' : '#0f172a', fontSize: 13, boxSizing: 'border-box' }}
+            />
+            <input
+              type="email"
+              placeholder="Email"
+              value={contactEmail}
+              onChange={(e) => setContactEmail(e.target.value)}
+              style={{ flex: 1, padding: '8px 10px', borderRadius: 6, border: `1px solid ${darkMode ? '#334155' : '#e2e8f0'}`, background: darkMode ? '#0f172a' : '#f8fafc', color: darkMode ? '#f1f5f9' : '#0f172a', fontSize: 13, boxSizing: 'border-box' }}
+            />
+          </div>
+        </div>
+
         {/* Notes textarea */}
         <textarea
           placeholder="Notes (optional)"
@@ -211,7 +250,7 @@ export function DispositionPicker({
             Cancel
           </button>
           <button
-            onClick={() => onConfirm(selected, notes, callbackDate || undefined)}
+            onClick={() => onConfirm(selected, notes, callbackDate || undefined, contactName || undefined, contactPhone || undefined, contactEmail || undefined)}
             disabled={isLoading}
             style={{
               flex: 2,
@@ -255,9 +294,9 @@ function PinDetail({ pin, onBack }: PinDetailProps) {
   const [showLogNote, setShowLogNote] = useState(false)
   const [noteText, setNoteText] = useState('')
 
-  const handleUpdate = (disposition: LeadPinDisposition, notes: string, callbackDate?: string) => {
+  const handleUpdate = (disposition: LeadPinDisposition, notes: string, callbackDate?: string, contactName?: string, contactPhone?: string, contactEmail?: string) => {
     updatePin.mutate(
-      { pinId: pin.id, data: { disposition, notes, callback_date: callbackDate } },
+      { pinId: pin.id, data: { disposition, notes, callback_date: callbackDate, contact_name: contactName, contact_phone: contactPhone, contact_email: contactEmail } },
       {
         onSuccess: () => {
           setShowUpdatePicker(false)
@@ -300,6 +339,9 @@ function PinDetail({ pin, onBack }: PinDetailProps) {
           initialDisposition={pin.disposition}
           initialNotes={pin.notes ?? ''}
           initialCallbackDate={pin.callback_date}
+          initialContactName={pin.contact_name}
+          initialContactPhone={pin.contact_phone}
+          initialContactEmail={pin.contact_email}
           onConfirm={handleUpdate}
           onCancel={() => setShowUpdatePicker(false)}
           isLoading={updatePin.isPending}
@@ -358,6 +400,40 @@ function PinDetail({ pin, onBack }: PinDetailProps) {
           </div>
         )}
       </div>
+
+      {/* Contact Info */}
+      {(pin.contact_name || pin.contact_phone || pin.contact_email) && (
+        <div style={{
+          marginTop: 12,
+          padding: 12,
+          borderRadius: 8,
+          border: `1px solid ${borderColor}`,
+          background: bgSecondary,
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: textSecondary, textTransform: 'uppercase', marginBottom: 8 }}>
+            Contact Info
+          </div>
+          {pin.contact_name && (
+            <div style={{ fontSize: 14, fontWeight: 600, color: textPrimary, marginBottom: 4 }}>
+              {pin.contact_name}
+            </div>
+          )}
+          {pin.contact_phone && (
+            <div style={{ marginBottom: 4 }}>
+              <a href={`tel:${pin.contact_phone}`} style={{ fontSize: 13, color: '#2563eb', textDecoration: 'none' }}>
+                {pin.contact_phone}
+              </a>
+            </div>
+          )}
+          {pin.contact_email && (
+            <div>
+              <a href={`mailto:${pin.contact_email}`} style={{ fontSize: 13, color: '#2563eb', textDecoration: 'none' }}>
+                {pin.contact_email}
+              </a>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Actions — hidden for team pins */}
       {!isTeamPin && (

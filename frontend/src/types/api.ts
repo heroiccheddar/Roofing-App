@@ -455,12 +455,18 @@ export interface LeadPinCreate {
   property_id?: string;
   lead_zone_id?: string;
   callback_date?: string;
+  contact_name?: string;
+  contact_phone?: string;
+  contact_email?: string;
 }
 
 export interface LeadPinUpdate {
   disposition?: LeadPinDisposition;
   notes?: string;
   callback_date?: string;
+  contact_name?: string;
+  contact_phone?: string;
+  contact_email?: string;
 }
 
 export interface LeadPinResponse {
@@ -474,6 +480,9 @@ export interface LeadPinResponse {
   disposition: LeadPinDisposition;
   notes?: string;
   callback_date?: string;
+  contact_name?: string;
+  contact_phone?: string;
+  contact_email?: string;
   roofer_name?: string;
   created_at: string;
   updated_at: string;

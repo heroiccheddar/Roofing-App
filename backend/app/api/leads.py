@@ -62,6 +62,9 @@ def _pin_to_response(pin: LeadPin, roofer_name: str | None = None) -> LeadPinRes
         disposition=pin.disposition,
         notes=pin.notes,
         callback_date=pin.callback_date,
+        contact_name=pin.contact_name,
+        contact_phone=pin.contact_phone,
+        contact_email=pin.contact_email,
         created_at=pin.created_at,
         updated_at=pin.updated_at,
         roofer_name=roofer_name,
@@ -279,6 +282,9 @@ async def create_lead_pin(
         disposition=body.disposition,
         notes=body.notes,
         callback_date=body.callback_date,
+        contact_name=body.contact_name,
+        contact_phone=body.contact_phone,
+        contact_email=body.contact_email,
     )
     db.add(pin)
     await db.flush()  # populate pin.id before creating the activity
@@ -432,6 +438,12 @@ async def update_lead_pin(
     # Clear callback_date if disposition changed away from callback
     if body.disposition is not None and body.disposition != "callback" and body.callback_date is None:
         pin.callback_date = None
+    if body.contact_name is not None:
+        pin.contact_name = body.contact_name
+    if body.contact_phone is not None:
+        pin.contact_phone = body.contact_phone
+    if body.contact_email is not None:
+        pin.contact_email = body.contact_email
 
     # Record the interaction in the activity log regardless of what changed
     activity = PinActivity(

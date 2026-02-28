@@ -73,6 +73,11 @@ class LeadPin(Base):
     # Free-form notes on the current status
     notes = Column(Text, nullable=True)
 
+    # Homeowner contact information
+    contact_name = Column(String, nullable=True)
+    contact_phone = Column(String, nullable=True)
+    contact_email = Column(String, nullable=True)
+
     # Scheduled follow-up date (set when disposition is "callback")
     callback_date = Column(DateTime(timezone=True), nullable=True, index=True)
 

@@ -47,6 +47,9 @@ class LeadPinCreate(BaseModel):
         None, description="Optional FK to the lead zone this pin falls within"
     )
     callback_date: datetime | None = Field(None, description="Scheduled follow-up date")
+    contact_name: str | None = Field(None, max_length=200, description="Homeowner name")
+    contact_phone: str | None = Field(None, max_length=30, description="Homeowner phone")
+    contact_email: str | None = Field(None, max_length=254, description="Homeowner email")
 
     @field_validator("disposition")
     @classmethod
@@ -67,6 +70,9 @@ class LeadPinUpdate(BaseModel):
         None, max_length=1000, description="Updated notes on the current status"
     )
     callback_date: datetime | None = Field(None, description="Reschedule follow-up")
+    contact_name: str | None = Field(None, max_length=200, description="Homeowner name")
+    contact_phone: str | None = Field(None, max_length=30, description="Homeowner phone")
+    contact_email: str | None = Field(None, max_length=254, description="Homeowner email")
 
     @field_validator("disposition")
     @classmethod
@@ -108,6 +114,9 @@ class LeadPinResponse(BaseModel):
     disposition: str = Field(..., description="Current sales funnel status")
     notes: str | None = Field(None, description="Current notes")
     callback_date: datetime | None = Field(None, description="Scheduled follow-up date")
+    contact_name: str | None = Field(None, description="Homeowner name")
+    contact_phone: str | None = Field(None, description="Homeowner phone")
+    contact_email: str | None = Field(None, description="Homeowner email")
 
     created_at: datetime = Field(..., description="Pin creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
