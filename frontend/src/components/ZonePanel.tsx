@@ -87,7 +87,7 @@ function ZonePanel({ isMobile = false }: { isMobile?: boolean }) {
   // Show skeleton while zone detail is loading
   if (selectedZoneId && !detail && detailLoading) {
     return (
-      <div style={{ ...styles.panel, height: '100%', overflowY: 'auto' }}>
+      <div style={{ ...styles.panel }}>
         <button onClick={() => setSelectedZoneId(null)} style={styles.backBtn}>
           Back to list
         </button>
@@ -101,7 +101,7 @@ function ZonePanel({ isMobile = false }: { isMobile?: boolean }) {
   // If a zone is selected, show detail view
   if (selectedZoneId && detail) {
     return (
-      <div style={{ ...styles.panel, height: '100%', overflowY: 'auto' }}>
+      <div style={{ ...styles.panel }}>
         <button onClick={() => setSelectedZoneId(null)} style={styles.backBtn}>
           Back to list
         </button>
@@ -505,7 +505,7 @@ function ZonePanel({ isMobile = false }: { isMobile?: boolean }) {
 
   // Zone list view
   return (
-    <div style={{ ...styles.panel, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+    <div style={{ ...styles.panel }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h2 style={{ ...styles.heading, margin: 0 }}>Lead Zones</h2>
         <div style={{ display: 'flex', gap: 2, background: 'var(--bg-tertiary)', borderRadius: 6, padding: 2 }}>
@@ -608,7 +608,7 @@ function ZonePanel({ isMobile = false }: { isMobile?: boolean }) {
           {sortedZones.length} zones{sortBy === 'score' ? ' by score' : sortBy === 'nearest' ? ' by distance' : ' by route efficiency'}
         </div>
       )}
-      <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+      <div>
       {listViewMode === 'table' ? (
         /* Table View */
         <div style={{ overflowX: 'auto' }}>

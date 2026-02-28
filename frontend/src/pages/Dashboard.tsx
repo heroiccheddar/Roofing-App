@@ -379,48 +379,46 @@ function Dashboard() {
         </div>
 
         {/* Sidebar body — scrollable */}
-        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <>
+        <div style={{ flex: 1, overflowY: 'auto' }}>
               {/* RecommendationCard above the zone panel */}
-              <div style={{ padding: '10px 12px 0', flexShrink: 0 }}>
+              <div style={{ padding: '10px 12px 0' }}>
                 <ErrorBoundary>
                   <RecommendationCard />
                 </ErrorBoundary>
               </div>
 
               {/* Team panel */}
-              <div style={{ flexShrink: 0 }}>
+              <div>
                 <ErrorBoundary>
                   <TeamPanel />
                 </ErrorBoundary>
               </div>
 
               {/* Leaderboard panel */}
-              <div style={{ flexShrink: 0 }}>
+              <div>
                 <ErrorBoundary>
                   <LeaderboardPanel />
                 </ErrorBoundary>
               </div>
 
               {/* Analytics panel */}
-              <div style={{ flexShrink: 0 }}>
+              <div>
                 <ErrorBoundary>
                   <AnalyticsPanel />
                 </ErrorBoundary>
               </div>
 
               {/* Follow-up queue */}
-              <div style={{ flexShrink: 0 }}>
+              <div>
                 <ErrorBoundary>
                   <FollowUpQueue />
                 </ErrorBoundary>
               </div>
 
-              {/* Zone panel fills remaining space */}
-              <div style={{ flex: 1, overflow: 'hidden' }}>
+              {/* Zone panel */}
+              <div>
                 <ZonePanel />
               </div>
-            </>
         </div>
       </div>
 
