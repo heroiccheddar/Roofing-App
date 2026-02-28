@@ -67,20 +67,6 @@ export default function FollowUpQueue() {
     setRouteError(null)
   }
 
-  // Auto-collapse if empty
-  if (count === 0 && !isLoading) {
-    return (
-      <div style={{
-        padding: '10px 16px',
-        borderBottom: `1px solid ${borderColor}`,
-        fontSize: 13,
-        color: textSecondary,
-      }}>
-        No follow-ups scheduled
-      </div>
-    )
-  }
-
   return (
     <div style={{ borderBottom: `1px solid ${borderColor}` }}>
       {/* Header */}
@@ -100,7 +86,7 @@ export default function FollowUpQueue() {
           fontWeight: 700,
         }}
       >
-        <span>Follow-Ups {count > 0 && `(${count})`}</span>
+        <span>Follow-Ups ({count})</span>
         <span style={{ fontSize: 11, color: textSecondary }}>
           {expanded ? '▲' : '▼'}
         </span>
@@ -113,6 +99,11 @@ export default function FollowUpQueue() {
             {isLoading && (
               <div style={{ padding: 16, fontSize: 13, color: textSecondary, textAlign: 'center' }}>
                 Loading...
+              </div>
+            )}
+            {!isLoading && count === 0 && (
+              <div style={{ padding: 16, fontSize: 13, color: textSecondary, textAlign: 'center' }}>
+                No follow-ups scheduled
               </div>
             )}
             {pins.map((pin, i) => {
