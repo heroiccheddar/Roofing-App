@@ -11,7 +11,7 @@
 
 import { useState } from 'react'
 import useAppStore from '../stores/appStore'
-import { useLeadPins, useLeadPinDetail, useUpdateLeadPin, useDeleteLeadPin, useLeadPinActivities, useCreatePinActivity } from '../hooks/useLeadPins'
+import { useLeadPins, useLeadPinDetail, useUpdateLeadPin, useDeleteLeadPin, useLeadPinActivities, useCreatePinActivity, useProperty } from '../hooks/useLeadPins'
 import { DispositionBadge, DISPOSITION_COLORS, DISPOSITION_LABELS } from './ZoneDetailHelpers'
 import PhotoGallery from './PhotoGallery'
 import type { LeadPinDisposition, LeadPinResponse } from '../types/api'
@@ -286,6 +286,7 @@ function PinDetail({ pin, onBack }: PinDetailProps) {
   const setSelectedLeadPinId = useAppStore((s) => s.setSelectedLeadPinId)
   const isTeamPin = pin.roofer_account_id !== user?.id
   const { data: activitiesData, isLoading: activitiesLoading } = useLeadPinActivities(pin.id)
+  const { data: propertyData } = useProperty(pin.property_id)
   const updatePin = useUpdateLeadPin()
   const deletePin = useDeleteLeadPin()
   const createActivity = useCreatePinActivity()
@@ -432,6 +433,59 @@ function PinDetail({ pin, onBack }: PinDetailProps) {
               </a>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Property Info */}
+      {propertyData && (
+        <div style={{
+          marginTop: 12,
+          padding: 12,
+          borderRadius: 8,
+          border: `1px solid ${borderColor}`,
+          background: bgSecondary,
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: textSecondary, textTransform: 'uppercase', marginBottom: 8 }}>
+            Property Info
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', fontSize: 13 }}>
+            {propertyData.owner_name && (
+              <>
+                <span style={{ color: textSecondary }}>Owner</span>
+                <span style={{ color: textPrimary, fontWeight: 500 }}>{propertyData.owner_name}</span>
+              </>
+            )}
+            {propertyData.year_built && (
+              <>
+                <span style={{ color: textSecondary }}>Year Built</span>
+                <span style={{ color: textPrimary, fontWeight: 500 }}>{propertyData.year_built}</span>
+              </>
+            )}
+            {propertyData.estimated_roof_age != null && (
+              <>
+                <span style={{ color: textSecondary }}>Roof Age</span>
+                <span style={{ color: textPrimary, fontWeight: 500 }}>{propertyData.estimated_roof_age} years</span>
+              </>
+            )}
+            {propertyData.square_footage && (
+              <>
+                <span style={{ color: textSecondary }}>Sq Ft</span>
+                <span style={{ color: textPrimary, fontWeight: 500 }}>{propertyData.square_footage.toLocaleString()}</span>
+              </>
+            )}
+            {propertyData.assessed_value && (
+              <>
+                <span style={{ color: textSecondary }}>Assessed Value</span>
+                <span style={{ color: textPrimary, fontWeight: 500 }}>${propertyData.assessed_value.toLocaleString()}</span>
+              </>
+            )}
+            {propertyData.property_type && (
+              <>
+                <span style={{ color: textSecondary }}>Property Type</span>
+                <span style={{ color: textPrimary, fontWeight: 500 }}>{propertyData.property_type}</span>
+              </>
+            )}
+          </div>
         </div>
       )}
 

@@ -7,7 +7,9 @@ capped at 2000 rows to stay within Fly.io's 256MB memory limit.
 
 import logging
 
-from fastapi import APIRouter, Depends, Query
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from geoalchemy2 import WKTElement
 from geoalchemy2.shape import to_shape
 from sqlalchemy import select
@@ -22,6 +24,7 @@ from app.schemas.properties import (
     PropertyGeoJSONFeature,
     PropertyGeoJSONProperties,
     PropertyGeoJSONResponse,
+    PropertyResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -136,3 +139,53 @@ async def get_properties_geojson(
         features.append(feature)
 
     return PropertyGeoJSONResponse(type="FeatureCollection", features=features)
+
+
+@router.get("/{property_id}", response_model=PropertyResponse)
+async def get_property(
+    property_id: UUID,
+    current_user: RooferAccount = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PropertyResponse:
+    """Get a single property by ID.
+
+    Properties are public parcel records — any authenticated user can view them.
+    """
+    stmt = select(Property).where(Property.id == property_id)
+    result = await db.execute(stmt)
+    prop = result.scalar_one_or_none()
+
+    if prop is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Property not found",
+        )
+
+    # Extract lat/lon from PostGIS geometry
+    lat, lon = None, None
+    if prop.location:
+        pt = to_shape(prop.location)
+        lat, lon = pt.y, pt.x
+
+    return PropertyResponse(
+        id=prop.id,
+        parcel_id=prop.parcel_id,
+        address=prop.address,
+        owner_name=prop.owner_name,
+        year_built=prop.year_built,
+        estimated_roof_age=prop.estimated_roof_age,
+        assessed_value=prop.assessed_value,
+        land_value=prop.land_value,
+        improvement_value=prop.improvement_value,
+        square_footage=prop.square_footage,
+        lot_size_acres=prop.lot_size_acres,
+        property_type=prop.property_type,
+        zoning=prop.zoning,
+        bedrooms=prop.bedrooms,
+        bathrooms=prop.bathrooms,
+        stories=prop.stories,
+        last_sale_date=str(prop.last_sale_date) if prop.last_sale_date else None,
+        last_sale_price=prop.last_sale_price,
+        latitude=lat,
+        longitude=lon,
+    )

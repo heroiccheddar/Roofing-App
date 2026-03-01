@@ -9,6 +9,7 @@ import {
   deleteLeadPin,
   getLeadPinActivities,
   createLeadPinActivity,
+  getProperty,
 } from '../api/client'
 import type { LeadPinCreate, LeadPinUpdate, PinActivityCreate, LeadPinResponse, PinActivityResponse } from '../types/api'
 import { enqueueOfflineAction } from './useOfflineQueue'
@@ -146,5 +147,14 @@ export function useLeadPinActivities(pinId: string | null) {
     queryFn: () => getLeadPinActivities(pinId!),
     enabled: !!pinId,
     staleTime: 30_000,
+  })
+}
+
+export function useProperty(propertyId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['property', propertyId],
+    queryFn: () => getProperty(propertyId!),
+    enabled: !!propertyId,
+    staleTime: 300_000, // property data changes rarely
   })
 }

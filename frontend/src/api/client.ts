@@ -44,6 +44,7 @@ import type {
   PinActivityResponse,
   PinActivityListResponse,
   PropertyGeoJSONResponse,
+  PropertyResponse,
   OrgCreate,
   OrgJoin,
   OrgResponse,
@@ -504,6 +505,10 @@ export async function getPropertiesGeoJSON(
   return apiFetch<PropertyGeoJSONResponse>('/api/v1/properties/geojson', {
     params: { bbox: bbox.join(',') },
   });
+}
+
+export async function getProperty(propertyId: string): Promise<PropertyResponse> {
+  return apiFetch<PropertyResponse>(`/api/v1/properties/${propertyId}`);
 }
 
 // ===== Leaderboard & Metrics =====
