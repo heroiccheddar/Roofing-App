@@ -54,6 +54,10 @@ import type {
   PinPhotoResponse,
   PinPhotoListResponse,
   AnalyticsDashboardResponse,
+  EstimateResponse,
+  EstimateCreate,
+  EstimateUpdate,
+  EstimateListResponse,
 } from '../types/api';
 
 // ===== Configuration =====
@@ -605,6 +609,35 @@ export async function uploadPinPhoto(pinId: string, file: File): Promise<PinPhot
 
 export async function deletePinPhoto(photoId: string): Promise<void> {
   return apiFetch<void>(`/api/v1/photos/${photoId}`, { method: 'DELETE' })
+}
+
+// ===== Estimates =====
+
+export async function getEstimates(pinId: string): Promise<EstimateListResponse> {
+  return apiFetch<EstimateListResponse>('/api/v1/estimates', {
+    params: { pin_id: pinId },
+  })
+}
+
+export async function createEstimate(data: EstimateCreate): Promise<EstimateResponse> {
+  return apiFetch<EstimateResponse>('/api/v1/estimates', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function updateEstimate(
+  estimateId: string,
+  data: EstimateUpdate,
+): Promise<EstimateResponse> {
+  return apiFetch<EstimateResponse>(`/api/v1/estimates/${estimateId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function deleteEstimate(estimateId: string): Promise<void> {
+  return apiFetch<void>(`/api/v1/estimates/${estimateId}`, { method: 'DELETE' })
 }
 
 // ===== Helper Types =====

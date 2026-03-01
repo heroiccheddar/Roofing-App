@@ -603,6 +603,50 @@ export interface PinPhotoListResponse {
   count: number
 }
 
+// ===== Estimates =====
+
+export interface LineItem {
+  description: string;
+  quantity: number;
+  unit: string;
+  unit_price: number;
+  total: number;
+}
+
+export interface EstimateResponse {
+  id: string;
+  lead_pin_id: string;
+  roofer_account_id: string;
+  line_items: LineItem[];
+  subtotal: number;
+  tax_rate: number;
+  total: number;
+  status: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EstimateCreate {
+  lead_pin_id: string;
+  line_items: LineItem[];
+  tax_rate?: number;
+  notes?: string;
+  status?: string;
+}
+
+export interface EstimateUpdate {
+  line_items?: LineItem[];
+  tax_rate?: number;
+  notes?: string;
+  status?: string;
+}
+
+export interface EstimateListResponse {
+  estimates: EstimateResponse[];
+  total: number;
+}
+
 // ===== Analytics =====
 export interface AnalyticsSummary {
   total_pins: number

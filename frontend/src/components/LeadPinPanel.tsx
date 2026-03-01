@@ -13,9 +13,10 @@ import { useState } from 'react'
 import useAppStore from '../stores/appStore'
 import { exportLeadsCsv } from '../api/client'
 import { useLeadPins, useLeadPinDetail, useUpdateLeadPin, useDeleteLeadPin, useLeadPinActivities, useCreatePinActivity, useProperty } from '../hooks/useLeadPins'
+import { useEstimates, useCreateEstimate, useUpdateEstimate, useDeleteEstimate } from '../hooks/useEstimates'
 import { DispositionBadge, DISPOSITION_COLORS, DISPOSITION_LABELS } from './ZoneDetailHelpers'
 import PhotoGallery from './PhotoGallery'
-import type { LeadPinDisposition, LeadPinResponse } from '../types/api'
+import type { LeadPinDisposition, LeadPinResponse, EstimateResponse, LineItem } from '../types/api'
 
 // ===== Helpers =====
 
@@ -274,6 +275,670 @@ export function DispositionPicker({
   )
 }
 
+// ===== Estimate Helpers =====
+
+const ESTIMATE_STATUS_COLORS: Record<string, string> = {
+  draft: '#64748b',
+  sent: '#2563eb',
+  accepted: '#16a34a',
+  declined: '#ef4444',
+}
+
+function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
+}
+
+function blankLineItem(): LineItem {
+  return { description: '', quantity: 1, unit: 'sq', unit_price: 0, total: 0 }
+}
+
+function computeTotals(items: LineItem[], taxRate: number): { subtotal: number; total: number } {
+  const subtotal = items.reduce((sum, it) => sum + it.total, 0)
+  return { subtotal, total: subtotal * (1 + taxRate) }
+}
+
+// ===== Estimate Builder (inline form) =====
+
+interface EstimateBuilderProps {
+  pinId: string
+  initial?: EstimateResponse
+  onSaved: () => void
+  onCancel: () => void
+}
+
+function EstimateBuilder({ pinId, initial, onSaved, onCancel }: EstimateBuilderProps) {
+  const darkMode = useAppStore((s) => s.darkMode)
+  const createEstimate = useCreateEstimate()
+  const updateEstimate = useUpdateEstimate()
+
+  const [lineItems, setLineItems] = useState<LineItem[]>(
+    initial?.line_items?.length ? initial.line_items : [blankLineItem()],
+  )
+  const [taxRateStr, setTaxRateStr] = useState(
+    initial ? String(initial.tax_rate * 100) : '0',
+  )
+  const [notes, setNotes] = useState(initial?.notes ?? '')
+  const [status, setStatus] = useState(initial?.status ?? 'draft')
+
+  const taxRate = parseFloat(taxRateStr) / 100 || 0
+  const { subtotal, total } = computeTotals(lineItems, taxRate)
+
+  const borderColor = darkMode ? '#334155' : '#e2e8f0'
+  const textPrimary = darkMode ? '#f1f5f9' : '#0f172a'
+  const textSecondary = darkMode ? '#94a3b8' : '#64748b'
+  const bgSecondary = darkMode ? '#1e293b' : '#f8fafc'
+  const inputBg = darkMode ? '#0f172a' : '#ffffff'
+
+  function updateItem(index: number, field: keyof LineItem, value: string | number) {
+    setLineItems((prev) => {
+      const next = prev.map((it, i) => {
+        if (i !== index) return it
+        const updated = { ...it, [field]: value }
+        updated.total = Math.round(updated.quantity * updated.unit_price * 100) / 100
+        return updated
+      })
+      return next
+    })
+  }
+
+  function addItem() {
+    setLineItems((prev) => [...prev, blankLineItem()])
+  }
+
+  function removeItem(index: number) {
+    setLineItems((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  function handleSave() {
+    const sanitizedItems = lineItems.map((it) => ({
+      ...it,
+      total: Math.round(it.quantity * it.unit_price * 100) / 100,
+    }))
+
+    if (initial) {
+      updateEstimate.mutate(
+        { estimateId: initial.id, data: { line_items: sanitizedItems, tax_rate: taxRate, notes: notes || undefined, status } },
+        { onSuccess: onSaved },
+      )
+    } else {
+      createEstimate.mutate(
+        { lead_pin_id: pinId, line_items: sanitizedItems, tax_rate: taxRate, notes: notes || undefined, status },
+        { onSuccess: onSaved },
+      )
+    }
+  }
+
+  const isSaving = createEstimate.isPending || updateEstimate.isPending
+  const inputStyle: React.CSSProperties = {
+    padding: '5px 7px',
+    borderRadius: 6,
+    border: `1px solid ${borderColor}`,
+    background: inputBg,
+    color: textPrimary,
+    fontSize: 12,
+    boxSizing: 'border-box',
+    width: '100%',
+  }
+
+  return (
+    <div style={{
+      padding: 12,
+      borderRadius: 8,
+      border: `1px solid ${borderColor}`,
+      background: bgSecondary,
+      marginTop: 8,
+    }}>
+      {/* Status selector */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <span style={{ fontSize: 12, color: textSecondary, flexShrink: 0 }}>Status:</span>
+        {(['draft', 'sent', 'accepted', 'declined'] as const).map((s) => (
+          <button
+            key={s}
+            onClick={() => setStatus(s)}
+            style={{
+              padding: '3px 9px',
+              borderRadius: 12,
+              border: `1px solid ${status === s ? ESTIMATE_STATUS_COLORS[s] : borderColor}`,
+              background: status === s ? `${ESTIMATE_STATUS_COLORS[s]}20` : 'transparent',
+              color: status === s ? ESTIMATE_STATUS_COLORS[s] : textSecondary,
+              fontSize: 11,
+              fontWeight: status === s ? 700 : 500,
+              cursor: 'pointer',
+              textTransform: 'capitalize',
+            }}
+          >
+            {s}
+          </button>
+        ))}
+      </div>
+
+      {/* Line items table */}
+      <div style={{ marginBottom: 8 }}>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '3fr 1fr 1fr 1.5fr 1.5fr 28px',
+          gap: 4,
+          marginBottom: 4,
+        }}>
+          {['Description', 'Qty', 'Unit', 'Unit Price', 'Total', ''].map((label) => (
+            <div key={label} style={{ fontSize: 10, fontWeight: 600, color: textSecondary, textTransform: 'uppercase', paddingLeft: 2 }}>
+              {label}
+            </div>
+          ))}
+        </div>
+        {lineItems.map((item, i) => (
+          <div
+            key={i}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '3fr 1fr 1fr 1.5fr 1.5fr 28px',
+              gap: 4,
+              marginBottom: 4,
+              alignItems: 'center',
+            }}
+          >
+            <input
+              value={item.description}
+              onChange={(e) => updateItem(i, 'description', e.target.value)}
+              placeholder="e.g. Remove old shingles"
+              style={inputStyle}
+            />
+            <input
+              type="number"
+              min={0}
+              value={item.quantity}
+              onChange={(e) => updateItem(i, 'quantity', parseFloat(e.target.value) || 0)}
+              style={inputStyle}
+            />
+            <input
+              value={item.unit}
+              onChange={(e) => updateItem(i, 'unit', e.target.value)}
+              placeholder="sq"
+              style={inputStyle}
+            />
+            <input
+              type="number"
+              min={0}
+              step={0.01}
+              value={item.unit_price}
+              onChange={(e) => updateItem(i, 'unit_price', parseFloat(e.target.value) || 0)}
+              style={inputStyle}
+            />
+            <div style={{ fontSize: 12, color: textPrimary, fontWeight: 500, paddingLeft: 2 }}>
+              {formatCurrency(item.total)}
+            </div>
+            <button
+              onClick={() => removeItem(i)}
+              disabled={lineItems.length === 1}
+              title="Remove line"
+              style={{
+                width: 24,
+                height: 24,
+                borderRadius: 4,
+                border: `1px solid ${borderColor}`,
+                background: 'transparent',
+                color: textSecondary,
+                fontSize: 13,
+                cursor: lineItems.length === 1 ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 0,
+                opacity: lineItems.length === 1 ? 0.4 : 1,
+              }}
+            >
+              x
+            </button>
+          </div>
+        ))}
+        <button
+          onClick={addItem}
+          style={{
+            marginTop: 4,
+            padding: '4px 10px',
+            borderRadius: 6,
+            border: `1px solid ${borderColor}`,
+            background: 'transparent',
+            color: '#2563eb',
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
+        >
+          + Add Line
+        </button>
+      </div>
+
+      {/* Tax rate + totals */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+        <label style={{ fontSize: 12, color: textSecondary, flexShrink: 0 }}>Tax Rate %</label>
+        <input
+          type="number"
+          min={0}
+          max={100}
+          step={0.01}
+          value={taxRateStr}
+          onChange={(e) => setTaxRateStr(e.target.value)}
+          style={{ ...inputStyle, width: 72 }}
+        />
+        <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
+          <div style={{ fontSize: 12, color: textSecondary }}>
+            Subtotal: <span style={{ color: textPrimary, fontWeight: 500 }}>{formatCurrency(subtotal)}</span>
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: textPrimary }}>
+            Total: {formatCurrency(total)}
+          </div>
+        </div>
+      </div>
+
+      {/* Notes */}
+      <textarea
+        value={notes}
+        onChange={(e) => setNotes(e.target.value)}
+        placeholder="Notes (optional)"
+        rows={2}
+        style={{
+          width: '100%',
+          padding: '7px 10px',
+          borderRadius: 6,
+          border: `1px solid ${borderColor}`,
+          background: inputBg,
+          color: textPrimary,
+          fontSize: 12,
+          resize: 'vertical',
+          boxSizing: 'border-box',
+          marginBottom: 10,
+          fontFamily: 'inherit',
+        }}
+      />
+
+      {/* Save / Cancel */}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button
+          onClick={handleSave}
+          disabled={isSaving}
+          style={{
+            flex: 2,
+            padding: '7px 0',
+            borderRadius: 8,
+            border: 'none',
+            background: '#2563eb',
+            color: '#ffffff',
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: isSaving ? 'wait' : 'pointer',
+            opacity: isSaving ? 0.7 : 1,
+          }}
+        >
+          {isSaving ? 'Saving...' : (initial ? 'Update Estimate' : 'Save Estimate')}
+        </button>
+        <button
+          onClick={onCancel}
+          style={{
+            flex: 1,
+            padding: '7px 0',
+            borderRadius: 8,
+            border: `1px solid ${borderColor}`,
+            background: 'transparent',
+            color: textSecondary,
+            fontSize: 13,
+            cursor: 'pointer',
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ===== Estimate Card (expanded detail) =====
+
+interface EstimateCardProps {
+  estimate: EstimateResponse
+  isOwner: boolean
+  onEdit: (e: EstimateResponse) => void
+  onDelete: (id: string) => void
+  isDeleting: boolean
+}
+
+function EstimateCard({ estimate, isOwner, onEdit, onDelete, isDeleting }: EstimateCardProps) {
+  const darkMode = useAppStore((s) => s.darkMode)
+  const [expanded, setExpanded] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  const borderColor = darkMode ? '#334155' : '#e2e8f0'
+  const textPrimary = darkMode ? '#f1f5f9' : '#0f172a'
+  const textSecondary = darkMode ? '#94a3b8' : '#64748b'
+  const bgSecondary = darkMode ? '#1e293b' : '#f8fafc'
+  const statusColor = ESTIMATE_STATUS_COLORS[estimate.status] ?? '#64748b'
+
+  return (
+    <div style={{
+      borderRadius: 8,
+      border: `1px solid ${borderColor}`,
+      background: bgSecondary,
+      marginBottom: 6,
+      overflow: 'hidden',
+    }}>
+      {/* Summary row — click to expand */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '10px 12px',
+          background: 'transparent',
+          border: 'none',
+          cursor: 'pointer',
+          textAlign: 'left',
+        }}
+      >
+        {/* Status badge */}
+        <span style={{
+          padding: '2px 8px',
+          borderRadius: 10,
+          background: `${statusColor}20`,
+          color: statusColor,
+          fontSize: 11,
+          fontWeight: 700,
+          textTransform: 'capitalize',
+          flexShrink: 0,
+        }}>
+          {estimate.status}
+        </span>
+        <span style={{ fontSize: 12, color: textSecondary, flexShrink: 0 }}>
+          {estimate.line_items.length} line{estimate.line_items.length !== 1 ? 's' : ''}
+        </span>
+        <span style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 700, color: textPrimary, flexShrink: 0 }}>
+          {formatCurrency(estimate.total)}
+        </span>
+        <span style={{ fontSize: 11, color: textSecondary, flexShrink: 0 }}>
+          {timeAgo(estimate.created_at)}
+        </span>
+        <span style={{ fontSize: 10, color: textSecondary }}>{expanded ? '▲' : '▼'}</span>
+      </button>
+
+      {expanded && (
+        <div style={{ padding: '0 12px 12px' }}>
+          {/* Line items */}
+          <div style={{
+            borderRadius: 6,
+            border: `1px solid ${borderColor}`,
+            overflow: 'hidden',
+            marginBottom: 8,
+          }}>
+            {/* Header */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '3fr 1fr 1fr 1.5fr 1.5fr',
+              gap: 4,
+              padding: '6px 10px',
+              background: darkMode ? '#0f172a' : '#f1f5f9',
+              borderBottom: `1px solid ${borderColor}`,
+            }}>
+              {['Description', 'Qty', 'Unit', 'Unit Price', 'Total'].map((col) => (
+                <div key={col} style={{ fontSize: 10, fontWeight: 600, color: textSecondary, textTransform: 'uppercase' }}>
+                  {col}
+                </div>
+              ))}
+            </div>
+            {estimate.line_items.map((item, i) => (
+              <div
+                key={i}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '3fr 1fr 1fr 1.5fr 1.5fr',
+                  gap: 4,
+                  padding: '6px 10px',
+                  borderBottom: i < estimate.line_items.length - 1 ? `1px solid ${borderColor}` : 'none',
+                  background: i % 2 === 0 ? bgSecondary : (darkMode ? '#0f172a' : '#ffffff'),
+                }}
+              >
+                <span style={{ fontSize: 12, color: textPrimary }}>{item.description}</span>
+                <span style={{ fontSize: 12, color: textSecondary }}>{item.quantity}</span>
+                <span style={{ fontSize: 12, color: textSecondary }}>{item.unit}</span>
+                <span style={{ fontSize: 12, color: textSecondary }}>{formatCurrency(item.unit_price)}</span>
+                <span style={{ fontSize: 12, color: textPrimary, fontWeight: 500 }}>{formatCurrency(item.total)}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Subtotal / Tax / Total */}
+          <div style={{ textAlign: 'right', marginBottom: 8 }}>
+            <div style={{ fontSize: 12, color: textSecondary }}>
+              Subtotal: <span style={{ color: textPrimary }}>{formatCurrency(estimate.subtotal)}</span>
+            </div>
+            <div style={{ fontSize: 12, color: textSecondary }}>
+              Tax ({(estimate.tax_rate * 100).toFixed(2)}%): <span style={{ color: textPrimary }}>{formatCurrency(estimate.total - estimate.subtotal)}</span>
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: textPrimary }}>
+              Total: {formatCurrency(estimate.total)}
+            </div>
+          </div>
+
+          {/* Notes */}
+          {estimate.notes && (
+            <div style={{
+              fontSize: 12,
+              color: textSecondary,
+              padding: '6px 8px',
+              borderRadius: 6,
+              border: `1px solid ${borderColor}`,
+              marginBottom: 8,
+              lineHeight: '1.5',
+            }}>
+              {estimate.notes}
+            </div>
+          )}
+
+          {/* Action buttons */}
+          {isOwner && (
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                onClick={() => window.print()}
+                title="Print / save as PDF"
+                style={{
+                  padding: '5px 10px',
+                  borderRadius: 6,
+                  border: `1px solid ${borderColor}`,
+                  background: 'transparent',
+                  color: textSecondary,
+                  fontSize: 12,
+                  cursor: 'pointer',
+                }}
+              >
+                Print
+              </button>
+              <button
+                onClick={() => onEdit(estimate)}
+                style={{
+                  padding: '5px 10px',
+                  borderRadius: 6,
+                  border: '1px solid #2563eb',
+                  background: 'transparent',
+                  color: '#2563eb',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Edit
+              </button>
+              {!confirmDelete ? (
+                <button
+                  onClick={() => setConfirmDelete(true)}
+                  style={{
+                    padding: '5px 10px',
+                    borderRadius: 6,
+                    border: '1px solid #ef4444',
+                    background: 'transparent',
+                    color: '#ef4444',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Delete
+                </button>
+              ) : (
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button
+                    onClick={() => onDelete(estimate.id)}
+                    disabled={isDeleting}
+                    style={{
+                      padding: '5px 10px',
+                      borderRadius: 6,
+                      border: 'none',
+                      background: '#ef4444',
+                      color: '#ffffff',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: isDeleting ? 'wait' : 'pointer',
+                      opacity: isDeleting ? 0.7 : 1,
+                    }}
+                  >
+                    {isDeleting ? 'Deleting...' : 'Confirm'}
+                  </button>
+                  <button
+                    onClick={() => setConfirmDelete(false)}
+                    style={{
+                      padding: '5px 10px',
+                      borderRadius: 6,
+                      border: `1px solid ${borderColor}`,
+                      background: 'transparent',
+                      color: textSecondary,
+                      fontSize: 12,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ===== Estimates Section =====
+
+interface EstimatesSectionProps {
+  pinId: string
+  isOwner: boolean
+}
+
+function EstimatesSection({ pinId, isOwner }: EstimatesSectionProps) {
+  const darkMode = useAppStore((s) => s.darkMode)
+  const { data: estimatesData, isLoading } = useEstimates(pinId)
+  const deleteEstimate = useDeleteEstimate()
+  const [showBuilder, setShowBuilder] = useState(false)
+  const [editingEstimate, setEditingEstimate] = useState<EstimateResponse | null>(null)
+
+  const borderColor = darkMode ? '#334155' : '#e2e8f0'
+  const textPrimary = darkMode ? '#f1f5f9' : '#0f172a'
+  const textSecondary = darkMode ? '#94a3b8' : '#64748b'
+
+  const estimates = estimatesData?.estimates ?? []
+
+  function handleEdit(estimate: EstimateResponse) {
+    setEditingEstimate(estimate)
+    setShowBuilder(true)
+  }
+
+  function handleDelete(id: string) {
+    deleteEstimate.mutate(id)
+  }
+
+  function handleBuilderDone() {
+    setShowBuilder(false)
+    setEditingEstimate(null)
+  }
+
+  return (
+    <div style={{ marginTop: 12 }}>
+      {/* Section header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: textSecondary, textTransform: 'uppercase' }}>
+            Estimates
+          </span>
+          {estimates.length > 0 && (
+            <span style={{
+              padding: '1px 6px',
+              borderRadius: 10,
+              background: borderColor,
+              color: textPrimary,
+              fontSize: 11,
+              fontWeight: 700,
+            }}>
+              {estimates.length}
+            </span>
+          )}
+        </div>
+        {isOwner && !showBuilder && (
+          <button
+            onClick={() => { setEditingEstimate(null); setShowBuilder(true) }}
+            style={{
+              padding: '4px 10px',
+              borderRadius: 6,
+              border: '1px solid #2563eb',
+              background: 'transparent',
+              color: '#2563eb',
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            + New Estimate
+          </button>
+        )}
+      </div>
+
+      {/* Inline builder */}
+      {showBuilder && (
+        <EstimateBuilder
+          pinId={pinId}
+          initial={editingEstimate ?? undefined}
+          onSaved={handleBuilderDone}
+          onCancel={handleBuilderDone}
+        />
+      )}
+
+      {/* List */}
+      {isLoading && (
+        <div style={{ fontSize: 12, color: textSecondary, padding: '8px 0' }}>
+          Loading estimates...
+        </div>
+      )}
+      {!isLoading && estimates.length === 0 && !showBuilder && (
+        <div style={{ fontSize: 12, color: textSecondary, padding: '4px 0' }}>
+          No estimates yet.
+        </div>
+      )}
+      {!isLoading && estimates.length > 0 && (
+        <div>
+          {estimates.map((est) => (
+            <EstimateCard
+              key={est.id}
+              estimate={est}
+              isOwner={isOwner}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              isDeleting={deleteEstimate.isPending}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ===== Pin Detail View =====
 
 interface PinDetailProps {
@@ -489,6 +1154,9 @@ function PinDetail({ pin, onBack }: PinDetailProps) {
           </div>
         </div>
       )}
+
+      {/* Estimates */}
+      <EstimatesSection pinId={pin.id} isOwner={!isTeamPin} />
 
       {/* Actions — hidden for team pins */}
       {!isTeamPin && (

@@ -16,6 +16,7 @@ from app.models.property import Property
 from app.models.lead_pin import LeadPin, PinActivity
 from app.models.organization import Organization
 from app.models.pin_photo import PinPhoto
+from app.models.estimate import Estimate
 
 __all__ = [
     "StormEvent",
@@ -31,4 +32,5 @@ __all__ = [
     "PinActivity",
     "Organization",
     "PinPhoto",
+    "Estimate",
 ]

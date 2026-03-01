@@ -22,6 +22,7 @@ from app.api.canvass import router as canvass_router
 from app.api.recommend import router as recommend_router
 from app.api.route import router as route_router
 from app.api.leads import router as leads_router
+from app.api.estimates import router as estimates_router
 from app.api.properties import router as properties_router
 from app.api.org import router as org_router
 from app.api.analytics import router as analytics_router
@@ -144,6 +145,7 @@ app.include_router(canvass_router, prefix="/api/v1")
 app.include_router(recommend_router, prefix="/api/v1")
 app.include_router(route_router, prefix="/api/v1")
 app.include_router(leads_router, prefix="/api/v1")
+app.include_router(estimates_router, prefix="/api/v1")
 app.include_router(properties_router, prefix="/api/v1")
 app.include_router(org_router, prefix="/api/v1")
 app.include_router(analytics_router, prefix="/api/v1")
