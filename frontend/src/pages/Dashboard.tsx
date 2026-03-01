@@ -20,7 +20,6 @@ type MobileTab = 'map' | 'zones' | 'route' | 'stats'
 
 function Dashboard() {
   const navigate = useNavigate()
-  const user = useAppStore((s) => s.user)
   const isMobile = useMediaQuery('(max-width: 767px)')
   const [mobileTab, setMobileTab] = useState<MobileTab>('map')
 
@@ -290,7 +289,7 @@ function Dashboard() {
               <line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" />
               <line x1="3" y1="10" x2="21" y2="10" />
             </svg>
-            Calendar
+            Cal
           </button>
 
           {/* Pipeline nav button */}
@@ -398,10 +397,7 @@ function Dashboard() {
           }}
         >
           <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)' }}>RoofIQ</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-            {user && (
-              <span style={{ fontSize: 13, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{user.email}</span>
-            )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <button
               onClick={() => navigate('/calendar')}
               style={{
