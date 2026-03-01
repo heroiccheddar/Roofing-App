@@ -458,6 +458,7 @@ export interface LeadPinCreate {
   contact_name?: string;
   contact_phone?: string;
   contact_email?: string;
+  estimated_value?: number;
 }
 
 export interface LeadPinUpdate {
@@ -467,6 +468,7 @@ export interface LeadPinUpdate {
   contact_name?: string;
   contact_phone?: string;
   contact_email?: string;
+  estimated_value?: number;
 }
 
 export interface LeadPinResponse {
@@ -483,6 +485,7 @@ export interface LeadPinResponse {
   contact_name?: string;
   contact_phone?: string;
   contact_email?: string;
+  estimated_value?: number;
   roofer_name?: string;
   created_at: string;
   updated_at: string;

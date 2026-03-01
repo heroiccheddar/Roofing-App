@@ -8,6 +8,7 @@ import uuid
 
 from sqlalchemy import (
     Column,
+    Numeric,
     String,
     Text,
     DateTime,
@@ -77,6 +78,9 @@ class LeadPin(Base):
     contact_name = Column(String, nullable=True)
     contact_phone = Column(String, nullable=True)
     contact_email = Column(String, nullable=True)
+
+    # Estimated deal value in dollars
+    estimated_value = Column(Numeric(12, 2), nullable=True)
 
     # Scheduled follow-up date (set when disposition is "callback")
     callback_date = Column(DateTime(timezone=True), nullable=True, index=True)

@@ -50,6 +50,7 @@ class LeadPinCreate(BaseModel):
     contact_name: str | None = Field(None, max_length=200, description="Homeowner name")
     contact_phone: str | None = Field(None, max_length=30, description="Homeowner phone")
     contact_email: str | None = Field(None, max_length=254, description="Homeowner email")
+    estimated_value: float | None = Field(None, description="Estimated deal value")
 
     @field_validator("disposition")
     @classmethod
@@ -73,6 +74,7 @@ class LeadPinUpdate(BaseModel):
     contact_name: str | None = Field(None, max_length=200, description="Homeowner name")
     contact_phone: str | None = Field(None, max_length=30, description="Homeowner phone")
     contact_email: str | None = Field(None, max_length=254, description="Homeowner email")
+    estimated_value: float | None = Field(None, description="Estimated deal value")
 
     @field_validator("disposition")
     @classmethod
@@ -117,6 +119,7 @@ class LeadPinResponse(BaseModel):
     contact_name: str | None = Field(None, description="Homeowner name")
     contact_phone: str | None = Field(None, description="Homeowner phone")
     contact_email: str | None = Field(None, description="Homeowner email")
+    estimated_value: float | None = Field(None, description="Estimated deal value")
 
     created_at: datetime = Field(..., description="Pin creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")

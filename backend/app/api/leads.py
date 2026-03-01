@@ -69,6 +69,7 @@ def _pin_to_response(pin: LeadPin, roofer_name: str | None = None) -> LeadPinRes
         contact_name=pin.contact_name,
         contact_phone=pin.contact_phone,
         contact_email=pin.contact_email,
+        estimated_value=pin.estimated_value,
         created_at=pin.created_at,
         updated_at=pin.updated_at,
         roofer_name=roofer_name,
@@ -289,6 +290,7 @@ async def create_lead_pin(
         contact_name=body.contact_name,
         contact_phone=body.contact_phone,
         contact_email=body.contact_email,
+        estimated_value=body.estimated_value,
     )
     db.add(pin)
     await db.flush()  # populate pin.id before creating the activity
@@ -408,7 +410,7 @@ async def export_leads_csv(
     writer = csv.writer(buf)
     headers = [
         "id", "address", "disposition", "contact_name", "contact_phone",
-        "contact_email", "notes", "callback_date", "lat", "lon",
+        "contact_email", "estimated_value", "notes", "callback_date", "lat", "lon",
         "created_at", "updated_at",
     ]
     if team:
@@ -424,6 +426,7 @@ async def export_leads_csv(
             pin.contact_name or "",
             pin.contact_phone or "",
             pin.contact_email or "",
+            str(pin.estimated_value) if pin.estimated_value is not None else "",
             pin.notes or "",
             pin.callback_date.isoformat() if pin.callback_date else "",
             pt.y,
@@ -527,6 +530,8 @@ async def update_lead_pin(
         pin.contact_phone = body.contact_phone
     if body.contact_email is not None:
         pin.contact_email = body.contact_email
+    if body.estimated_value is not None:
+        pin.estimated_value = body.estimated_value
 
     # Record the interaction in the activity log regardless of what changed
     activity = PinActivity(

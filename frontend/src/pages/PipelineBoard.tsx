@@ -40,6 +40,10 @@ function timeAgo(iso: string): string {
   return `${months}mo ago`
 }
 
+function formatCurrency(value: number): string {
+  return '$' + value.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+}
+
 // ===== Sub-components =====
 
 interface PinCardProps {
@@ -92,6 +96,18 @@ function PinCard({ pin, darkMode, onDragStart }: PinCardProps) {
         </div>
       )}
 
+      {/* Deal value */}
+      {pin.estimated_value != null && pin.estimated_value > 0 && (
+        <div style={{
+          fontSize: 12,
+          fontWeight: 600,
+          color: '#22c55e',
+          marginBottom: 4,
+        }}>
+          {formatCurrency(pin.estimated_value)}
+        </div>
+      )}
+
       {/* Footer: timestamp + disposition dot */}
       <div style={{
         display: 'flex',
@@ -117,6 +133,7 @@ function PinCard({ pin, darkMode, onDragStart }: PinCardProps) {
 interface KanbanColumnProps {
   disposition: LeadPinDisposition
   pins: LeadPinResponse[]
+  totalValue: number
   isOver: boolean
   darkMode: boolean
   onDragStart: (e: React.DragEvent, pinId: string, sourceDisposition: LeadPinDisposition) => void
@@ -128,6 +145,7 @@ interface KanbanColumnProps {
 function KanbanColumn({
   disposition,
   pins,
+  totalValue,
   isOver,
   darkMode,
   onDragStart,
@@ -193,6 +211,16 @@ function KanbanColumn({
         }}>
           {pins.length}
         </span>
+        {totalValue > 0 && (
+          <span style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: '#22c55e',
+            flexShrink: 0,
+          }}>
+            {formatCurrency(totalValue)}
+          </span>
+        )}
       </div>
 
       {/* Cards scroll area */}
@@ -399,6 +427,16 @@ export default function PipelineBoard() {
             {data.total} pin{data.total !== 1 ? 's' : ''}
           </span>
         )}
+
+        {/* Total pipeline value */}
+        {data && (() => {
+          const totalValue = data.pins.reduce((sum, p) => sum + (p.estimated_value || 0), 0)
+          return totalValue > 0 ? (
+            <span style={{ fontSize: 12, color: '#22c55e', fontWeight: 600, flexShrink: 0 }}>
+              {formatCurrency(totalValue)} pipeline
+            </span>
+          ) : null
+        })()}
       </div>
 
       {/* ===== Body ===== */}
@@ -442,19 +480,24 @@ export default function PipelineBoard() {
             // Ensure columns fill vertical space inside the scroll container
             alignItems: 'stretch',
           }}>
-            {COLUMN_ORDER.map((disposition) => (
-              <KanbanColumn
-                key={disposition}
-                disposition={disposition}
-                pins={columns[disposition]}
-                isOver={dragOverColumn === disposition}
-                darkMode={darkMode}
-                onDragStart={handleDragStart}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-              />
-            ))}
+            {COLUMN_ORDER.map((disposition) => {
+              const colPins = columns[disposition]
+              const totalValue = colPins.reduce((sum, p) => sum + (p.estimated_value || 0), 0)
+              return (
+                <KanbanColumn
+                  key={disposition}
+                  disposition={disposition}
+                  pins={colPins}
+                  totalValue={totalValue}
+                  isOver={dragOverColumn === disposition}
+                  darkMode={darkMode}
+                  onDragStart={handleDragStart}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                />
+              )
+            })}
           </div>
         </div>
       )}

@@ -9,7 +9,7 @@
  *  - Delete pin with confirmation
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import useAppStore from '../stores/appStore'
 import { exportLeadsCsv } from '../api/client'
 import { useLeadPins, useLeadPinDetail, useUpdateLeadPin, useDeleteLeadPin, useLeadPinActivities, useCreatePinActivity, useProperty } from '../hooks/useLeadPins'
@@ -1032,6 +1032,24 @@ function PinDetail({ pin, onBack }: PinDetailProps) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [showLogNote, setShowLogNote] = useState(false)
   const [noteText, setNoteText] = useState('')
+  const [dealValue, setDealValue] = useState<string>(
+    pin.estimated_value != null ? String(pin.estimated_value) : ''
+  )
+  const { data: estimatesData } = useEstimates(pin.id)
+  const acceptedEstimate = (estimatesData?.estimates ?? []).find((e) => e.status === 'accepted')
+
+  useEffect(() => {
+    setDealValue(pin.estimated_value != null ? String(pin.estimated_value) : '')
+  }, [pin.id, pin.estimated_value])
+
+  const saveDealValue = () => {
+    const parsed = parseFloat(dealValue)
+    if (!isNaN(parsed) && parsed !== pin.estimated_value) {
+      updatePin.mutate({ pinId: pin.id, data: { estimated_value: parsed } })
+    } else if (dealValue.trim() === '' && pin.estimated_value != null) {
+      updatePin.mutate({ pinId: pin.id, data: { estimated_value: undefined } })
+    }
+  }
 
   const handleUpdate = (disposition: LeadPinDisposition, notes: string, callbackDate?: string, contactName?: string, contactPhone?: string, contactEmail?: string) => {
     updatePin.mutate(
@@ -1173,6 +1191,67 @@ function PinDetail({ pin, onBack }: PinDetailProps) {
           )}
         </div>
       )}
+
+      {/* Deal Value */}
+      <div style={{
+        marginTop: 12,
+        padding: 12,
+        borderRadius: 8,
+        border: `1px solid ${borderColor}`,
+        background: bgSecondary,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: textSecondary, textTransform: 'uppercase' }}>
+            Deal Value
+          </div>
+          {acceptedEstimate && (
+            <button
+              onClick={() => setDealValue(String(acceptedEstimate.total))}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#16a34a',
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: 'pointer',
+                padding: 0,
+              }}
+            >
+              Auto-fill from estimate
+            </button>
+          )}
+        </div>
+        {pin.estimated_value != null && (
+          <div style={{ fontSize: 15, fontWeight: 700, color: textPrimary, marginBottom: 8 }}>
+            {formatCurrency(pin.estimated_value)}
+          </div>
+        )}
+        {!isTeamPin && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 13, color: textSecondary, flexShrink: 0 }}>$</span>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="0.00"
+              value={dealValue}
+              onChange={(e) => setDealValue(e.target.value)}
+              onBlur={saveDealValue}
+              onKeyDown={(e) => { if (e.key === 'Enter') { (e.target as HTMLInputElement).blur() } }}
+              style={{
+                flex: 1,
+                fontSize: 13,
+                padding: '5px 8px',
+                borderRadius: 6,
+                border: `1px solid ${borderColor}`,
+                background: darkMode ? '#0f172a' : '#ffffff',
+                color: textPrimary,
+                outline: 'none',
+              }}
+            />
+          </div>
+        )}
+      </div>
 
       {/* Property Info */}
       {propertyData && (
