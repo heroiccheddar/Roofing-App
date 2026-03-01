@@ -416,6 +416,40 @@ export async function getLeadPin(pinId: string): Promise<LeadPinResponse> {
   return apiFetch<LeadPinResponse>(`/api/v1/leads/${pinId}`)
 }
 
+export async function exportLeadsCsv(team?: boolean): Promise<void> {
+  const url = new URL('/api/v1/leads/export', API_BASE)
+  if (team) url.searchParams.set('team', 'true')
+
+  const headers: Record<string, string> = {}
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`
+  }
+
+  const res = await fetch(url.toString(), { headers })
+
+  if (!res.ok) {
+    if (res.status === 401) {
+      clearAuthToken()
+      window.location.href = '/login'
+      throw new Error('Session expired')
+    }
+    throw new Error(`Export failed (${res.status})`)
+  }
+
+  const blob = await res.blob()
+  const disposition = res.headers.get('Content-Disposition')
+  const match = disposition?.match(/filename="?([^"]+)"?/)
+  const filename = match?.[1] || 'roofiq_leads.csv'
+
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(a.href)
+}
+
 export async function getLeadPinCallbacks(team?: boolean): Promise<LeadPinListResponse> {
   const params: Record<string, string | undefined> = {};
   if (team) params.team = 'true';

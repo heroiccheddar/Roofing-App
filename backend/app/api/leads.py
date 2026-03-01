@@ -5,10 +5,14 @@ and build a full interaction history. All queries are scoped to the
 authenticated user's account — no cross-user data is exposed.
 """
 
+import csv
+import io
 import logging
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from geoalchemy2 import WKTElement
 from geoalchemy2.shape import to_shape
 from sqlalchemy import func, or_, select
@@ -361,6 +365,85 @@ async def get_lead_pin_callbacks(
     return LeadPinListResponse(
         pins=pins_out,
         total=len(pins_out),
+    )
+
+
+@router.get("/export")
+async def export_leads_csv(
+    team: bool = Query(False, description="Include team members' pins"),
+    current_user: RooferAccount = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    """Export all lead pins as a CSV file download.
+
+    Args:
+        team: If True and user is in an org, include all org members' pins.
+        current_user: Authenticated roofer account.
+        db: Database session.
+
+    Returns:
+        StreamingResponse with CSV content.
+    """
+    member_ids: list[UUID] | None = None
+    if team:
+        member_ids = await _get_team_member_ids(current_user, db)
+
+    if team and member_ids is not None:
+        stmt = (
+            select(LeadPin, RooferAccount.company_name)
+            .outerjoin(RooferAccount, LeadPin.roofer_account_id == RooferAccount.id)
+            .where(LeadPin.roofer_account_id.in_(member_ids))
+        )
+    else:
+        stmt = select(LeadPin, RooferAccount.company_name).outerjoin(
+            RooferAccount, LeadPin.roofer_account_id == RooferAccount.id
+        ).where(LeadPin.roofer_account_id == current_user.id)
+
+    stmt = stmt.order_by(LeadPin.created_at.desc())
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    # Build CSV in memory
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    headers = [
+        "id", "address", "disposition", "contact_name", "contact_phone",
+        "contact_email", "notes", "callback_date", "lat", "lon",
+        "created_at", "updated_at",
+    ]
+    if team:
+        headers.append("roofer_name")
+    writer.writerow(headers)
+
+    for pin, company_name in rows:
+        pt = to_shape(pin.location)
+        row = [
+            str(pin.id),
+            pin.address or "",
+            pin.disposition,
+            pin.contact_name or "",
+            pin.contact_phone or "",
+            pin.contact_email or "",
+            pin.notes or "",
+            pin.callback_date.isoformat() if pin.callback_date else "",
+            pt.y,
+            pt.x,
+            pin.created_at.isoformat() if pin.created_at else "",
+            pin.updated_at.isoformat() if pin.updated_at else "",
+        ]
+        if team:
+            name = company_name if pin.roofer_account_id != current_user.id else ""
+            row.append(name or "")
+        writer.writerow(row)
+
+    buf.seek(0)
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    filename = f"roofiq_leads_{today}.csv"
+
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

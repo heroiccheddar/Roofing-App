@@ -11,6 +11,7 @@
 
 import { useState } from 'react'
 import useAppStore from '../stores/appStore'
+import { exportLeadsCsv } from '../api/client'
 import { useLeadPins, useLeadPinDetail, useUpdateLeadPin, useDeleteLeadPin, useLeadPinActivities, useCreatePinActivity, useProperty } from '../hooks/useLeadPins'
 import { DispositionBadge, DISPOSITION_COLORS, DISPOSITION_LABELS } from './ZoneDetailHelpers'
 import PhotoGallery from './PhotoGallery'
@@ -712,6 +713,7 @@ function LeadPinPanel() {
   const setSelectedLeadPinId = useAppStore((s) => s.setSelectedLeadPinId)
 
   const [expanded, setExpanded] = useState(true)
+  const [exporting, setExporting] = useState(false)
   const { data: pinsData, isLoading: pinsLoading } = useLeadPins()
 
   // Direct fetch for the selected pin (used when pin isn't in the bbox list)
@@ -761,12 +763,39 @@ function LeadPinPanel() {
       {/* Pin list view — show when no pin is selected */}
       {!selectedLeadPinId && expanded && (
         <div style={{ padding: '0 16px 16px' }}>
-          {/* Pin-drop toggle */}
+          {/* Pin-drop toggle + Export CSV */}
           <div style={{
             display: 'flex',
             justifyContent: 'flex-end',
+            gap: 8,
             marginBottom: 14,
           }}>
+            <button
+              onClick={async () => {
+                setExporting(true)
+                try {
+                  await exportLeadsCsv()
+                } catch {
+                  // Silently handle — 401 already redirects to login
+                } finally {
+                  setExporting(false)
+                }
+              }}
+              disabled={exporting}
+              style={{
+                padding: '6px 12px',
+                borderRadius: 8,
+                border: `1px solid ${borderColor}`,
+                background: 'transparent',
+                color: textSecondary,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: exporting ? 'wait' : 'pointer',
+                opacity: exporting ? 0.6 : 1,
+              }}
+            >
+              {exporting ? 'Exporting...' : 'Export CSV'}
+            </button>
             <button
               onClick={() => setIsPinDropMode(!isPinDropMode)}
               style={{
