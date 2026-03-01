@@ -297,6 +297,46 @@ function computeTotals(items: LineItem[], taxRate: number): { subtotal: number; 
   return { subtotal, total: subtotal * (1 + taxRate) }
 }
 
+function printEstimate(estimate: EstimateResponse) {
+  const fmt = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
+  const rows = estimate.line_items.map((it) =>
+    `<tr><td>${it.description}</td><td style="text-align:right">${it.quantity}</td><td>${it.unit}</td><td style="text-align:right">${fmt(it.unit_price)}</td><td style="text-align:right">${fmt(it.total)}</td></tr>`
+  ).join('')
+  const html = `<!DOCTYPE html><html><head><title>Estimate</title><style>
+body{font-family:system-ui,sans-serif;margin:40px;color:#0f172a}
+table{width:100%;border-collapse:collapse;margin:16px 0}
+th,td{padding:8px 12px;border-bottom:1px solid #e2e8f0;text-align:left;font-size:14px}
+th{background:#f8fafc;font-size:12px;text-transform:uppercase;color:#64748b;font-weight:600}
+.totals{text-align:right;margin-top:16px;font-size:14px;color:#475569}
+.totals .total{font-size:18px;font-weight:700;color:#0f172a}
+.notes{margin-top:16px;padding:12px;background:#f8fafc;border-radius:6px;font-size:13px;color:#475569;line-height:1.5}
+.status{display:inline-block;padding:2px 10px;border-radius:10px;font-size:12px;font-weight:700;text-transform:capitalize;margin-bottom:8px}
+h1{font-size:20px;margin:0 0 4px}
+.meta{font-size:13px;color:#64748b;margin-bottom:20px}
+@media print{body{margin:20px}}
+</style></head><body>
+<h1>Estimate</h1>
+<div class="meta">
+<span class="status" style="background:#${estimate.status === 'accepted' ? 'dcfce7' : estimate.status === 'sent' ? 'dbeafe' : estimate.status === 'declined' ? 'fee2e2' : 'f1f5f9'};color:#${estimate.status === 'accepted' ? '16a34a' : estimate.status === 'sent' ? '2563eb' : estimate.status === 'declined' ? 'ef4444' : '64748b'}">${estimate.status}</span>
+&nbsp;&middot;&nbsp;${new Date(estimate.created_at).toLocaleDateString()}
+</div>
+<table><thead><tr><th>Description</th><th style="text-align:right">Qty</th><th>Unit</th><th style="text-align:right">Unit Price</th><th style="text-align:right">Total</th></tr></thead><tbody>${rows}</tbody></table>
+<div class="totals">
+<div>Subtotal: ${fmt(estimate.subtotal)}</div>
+<div>Tax (${(estimate.tax_rate * 100).toFixed(2)}%): ${fmt(estimate.total - estimate.subtotal)}</div>
+<div class="total">Total: ${fmt(estimate.total)}</div>
+</div>
+${estimate.notes ? `<div class="notes">${estimate.notes}</div>` : ''}
+</body></html>`
+  const w = window.open('', '_blank', 'width=800,height=600')
+  if (w) {
+    w.document.write(html)
+    w.document.close()
+    w.focus()
+    w.print()
+  }
+}
+
 // ===== Estimate Builder (inline form) =====
 
 interface EstimateBuilderProps {
@@ -738,7 +778,7 @@ function EstimateCard({ estimate, isOwner, onEdit, onDelete, isDeleting }: Estim
           {isOwner && (
             <div style={{ display: 'flex', gap: 6 }}>
               <button
-                onClick={() => window.print()}
+                onClick={() => printEstimate(estimate)}
                 title="Print / save as PDF"
                 style={{
                   padding: '5px 10px',
