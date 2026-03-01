@@ -274,6 +274,25 @@ function Dashboard() {
             </svg>
             Stats
           </button>
+
+          {/* Pipeline nav button */}
+          <button
+            onClick={() => navigate('/pipeline')}
+            style={{
+              flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
+              gap: 2, padding: '8px 0', border: 'none', background: 'none', cursor: 'pointer',
+              color: 'var(--text-tertiary)',
+              fontSize: 11, fontWeight: 400,
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="7" height="7" rx="1" />
+              <rect x="14" y="3" width="7" height="7" rx="1" />
+              <rect x="3" y="14" width="7" height="7" rx="1" />
+              <rect x="14" y="14" width="7" height="7" rx="1" />
+            </svg>
+            Pipeline
+          </button>
         </div>
       </div>
     )
@@ -365,6 +384,16 @@ function Dashboard() {
             {user && (
               <span style={{ fontSize: 13, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{user.email}</span>
             )}
+            <button
+              onClick={() => navigate('/pipeline')}
+              style={{
+                background: 'none', border: '1px solid var(--border-primary)', borderRadius: 6,
+                padding: '4px 8px', fontSize: 12, cursor: 'pointer', color: 'var(--text-secondary)',
+                flexShrink: 0,
+              }}
+            >
+              Pipeline
+            </button>
             <button
               onClick={() => navigate('/settings')}
               style={{

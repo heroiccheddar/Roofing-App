@@ -26,6 +26,7 @@ const Dashboard = lazyRetry(() => import('./pages/Dashboard'))
 const Login = lazyRetry(() => import('./pages/Login'))
 const ZoneDetail = lazyRetry(() => import('./pages/ZoneDetail'))
 const Settings = lazyRetry(() => import('./pages/Settings'))
+const PipelineBoard = lazyRetry(() => import('./pages/PipelineBoard'))
 
 function PendingPinCreator() {
   const pendingPinLocation = useAppStore((s) => s.pendingPinLocation)
@@ -106,6 +107,9 @@ function App() {
           } />
           <Route path="/settings" element={
             isAuthenticated ? <Settings /> : <Navigate to="/login" />
+          } />
+          <Route path="/pipeline" element={
+            isAuthenticated ? <PipelineBoard /> : <Navigate to="/login" />
           } />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
