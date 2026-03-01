@@ -297,36 +297,65 @@ function computeTotals(items: LineItem[], taxRate: number): { subtotal: number; 
   return { subtotal, total: subtotal * (1 + taxRate) }
 }
 
-function printEstimate(estimate: EstimateResponse) {
+interface PrintBranding {
+  companyName?: string
+  email?: string
+  address?: string
+  contactName?: string
+}
+
+function printEstimate(estimate: EstimateResponse, branding: PrintBranding) {
   const fmt = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
   const rows = estimate.line_items.map((it) =>
     `<tr><td>${it.description}</td><td style="text-align:right">${it.quantity}</td><td>${it.unit}</td><td style="text-align:right">${fmt(it.unit_price)}</td><td style="text-align:right">${fmt(it.total)}</td></tr>`
   ).join('')
-  const html = `<!DOCTYPE html><html><head><title>Estimate</title><style>
+  const statusBg = estimate.status === 'accepted' ? 'dcfce7' : estimate.status === 'sent' ? 'dbeafe' : estimate.status === 'declined' ? 'fee2e2' : 'f1f5f9'
+  const statusFg = estimate.status === 'accepted' ? '16a34a' : estimate.status === 'sent' ? '2563eb' : estimate.status === 'declined' ? 'ef4444' : '64748b'
+  const html = `<!DOCTYPE html><html><head><title>Estimate${branding.companyName ? ` — ${branding.companyName}` : ''}</title><style>
 body{font-family:system-ui,sans-serif;margin:40px;color:#0f172a}
 table{width:100%;border-collapse:collapse;margin:16px 0}
 th,td{padding:8px 12px;border-bottom:1px solid #e2e8f0;text-align:left;font-size:14px}
 th{background:#f8fafc;font-size:12px;text-transform:uppercase;color:#64748b;font-weight:600}
+.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #e2e8f0}
+.company{font-size:22px;font-weight:800;color:#0f172a;margin:0}
+.company-email{font-size:13px;color:#64748b;margin-top:2px}
+.estimate-label{font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:600;margin-bottom:4px}
+.estimate-date{font-size:14px;color:#0f172a}
+.client-info{margin-bottom:20px;padding:12px 16px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0}
+.client-label{font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:#94a3b8;font-weight:600;margin-bottom:4px}
+.client-value{font-size:14px;color:#0f172a;font-weight:500}
 .totals{text-align:right;margin-top:16px;font-size:14px;color:#475569}
-.totals .total{font-size:18px;font-weight:700;color:#0f172a}
-.notes{margin-top:16px;padding:12px;background:#f8fafc;border-radius:6px;font-size:13px;color:#475569;line-height:1.5}
-.status{display:inline-block;padding:2px 10px;border-radius:10px;font-size:12px;font-weight:700;text-transform:capitalize;margin-bottom:8px}
-h1{font-size:20px;margin:0 0 4px}
-.meta{font-size:13px;color:#64748b;margin-bottom:20px}
-@media print{body{margin:20px}}
+.totals .total{font-size:20px;font-weight:800;color:#0f172a;margin-top:4px}
+.notes{margin-top:20px;padding:12px 16px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;font-size:13px;color:#475569;line-height:1.6}
+.notes-label{font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:#94a3b8;font-weight:600;margin-bottom:6px}
+.status{display:inline-block;padding:3px 12px;border-radius:12px;font-size:11px;font-weight:700;text-transform:capitalize}
+.footer{margin-top:40px;padding-top:16px;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8;text-align:center}
+@media print{body{margin:20px}.footer{position:fixed;bottom:20px;left:0;right:0}}
 </style></head><body>
-<h1>Estimate</h1>
-<div class="meta">
-<span class="status" style="background:#${estimate.status === 'accepted' ? 'dcfce7' : estimate.status === 'sent' ? 'dbeafe' : estimate.status === 'declined' ? 'fee2e2' : 'f1f5f9'};color:#${estimate.status === 'accepted' ? '16a34a' : estimate.status === 'sent' ? '2563eb' : estimate.status === 'declined' ? 'ef4444' : '64748b'}">${estimate.status}</span>
-&nbsp;&middot;&nbsp;${new Date(estimate.created_at).toLocaleDateString()}
+<div class="header">
+<div>
+<div class="company">${branding.companyName || 'Estimate'}</div>
+${branding.email ? `<div class="company-email">${branding.email}</div>` : ''}
 </div>
+<div style="text-align:right">
+<div class="estimate-label">Estimate</div>
+<div class="estimate-date">${new Date(estimate.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+<div style="margin-top:6px"><span class="status" style="background:#${statusBg};color:#${statusFg}">${estimate.status}</span></div>
+</div>
+</div>
+${branding.address || branding.contactName ? `<div class="client-info">
+<div class="client-label">Prepared for</div>
+${branding.contactName ? `<div class="client-value">${branding.contactName}</div>` : ''}
+${branding.address ? `<div style="font-size:13px;color:#64748b;margin-top:2px">${branding.address}</div>` : ''}
+</div>` : ''}
 <table><thead><tr><th>Description</th><th style="text-align:right">Qty</th><th>Unit</th><th style="text-align:right">Unit Price</th><th style="text-align:right">Total</th></tr></thead><tbody>${rows}</tbody></table>
 <div class="totals">
 <div>Subtotal: ${fmt(estimate.subtotal)}</div>
 <div>Tax (${(estimate.tax_rate * 100).toFixed(2)}%): ${fmt(estimate.total - estimate.subtotal)}</div>
 <div class="total">Total: ${fmt(estimate.total)}</div>
 </div>
-${estimate.notes ? `<div class="notes">${estimate.notes}</div>` : ''}
+${estimate.notes ? `<div class="notes"><div class="notes-label">Notes</div>${estimate.notes}</div>` : ''}
+${branding.companyName ? `<div class="footer">${branding.companyName}${branding.email ? ` &middot; ${branding.email}` : ''}</div>` : ''}
 </body></html>`
   const w = window.open('', '_blank', 'width=800,height=600')
   if (w) {
@@ -637,12 +666,13 @@ function EstimateBuilder({ pinId, initial, onSaved, onCancel }: EstimateBuilderP
 interface EstimateCardProps {
   estimate: EstimateResponse
   isOwner: boolean
+  branding: PrintBranding
   onEdit: (e: EstimateResponse) => void
   onDelete: (id: string) => void
   isDeleting: boolean
 }
 
-function EstimateCard({ estimate, isOwner, onEdit, onDelete, isDeleting }: EstimateCardProps) {
+function EstimateCard({ estimate, isOwner, branding, onEdit, onDelete, isDeleting }: EstimateCardProps) {
   const darkMode = useAppStore((s) => s.darkMode)
   const [expanded, setExpanded] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -778,7 +808,7 @@ function EstimateCard({ estimate, isOwner, onEdit, onDelete, isDeleting }: Estim
           {isOwner && (
             <div style={{ display: 'flex', gap: 6 }}>
               <button
-                onClick={() => printEstimate(estimate)}
+                onClick={() => printEstimate(estimate, branding)}
                 title="Print / save as PDF"
                 style={{
                   padding: '5px 10px',
@@ -871,9 +901,10 @@ function EstimateCard({ estimate, isOwner, onEdit, onDelete, isDeleting }: Estim
 interface EstimatesSectionProps {
   pinId: string
   isOwner: boolean
+  branding: PrintBranding
 }
 
-function EstimatesSection({ pinId, isOwner }: EstimatesSectionProps) {
+function EstimatesSection({ pinId, isOwner, branding }: EstimatesSectionProps) {
   const darkMode = useAppStore((s) => s.darkMode)
   const { data: estimatesData, isLoading } = useEstimates(pinId)
   const deleteEstimate = useDeleteEstimate()
@@ -968,6 +999,7 @@ function EstimatesSection({ pinId, isOwner }: EstimatesSectionProps) {
               key={est.id}
               estimate={est}
               isOwner={isOwner}
+              branding={branding}
               onEdit={handleEdit}
               onDelete={handleDelete}
               isDeleting={deleteEstimate.isPending}
@@ -1196,7 +1228,12 @@ function PinDetail({ pin, onBack }: PinDetailProps) {
       )}
 
       {/* Estimates */}
-      <EstimatesSection pinId={pin.id} isOwner={!isTeamPin} />
+      <EstimatesSection pinId={pin.id} isOwner={!isTeamPin} branding={{
+        companyName: user?.companyName,
+        email: user?.email,
+        address: pin.address ?? undefined,
+        contactName: pin.contact_name ?? undefined,
+      }} />
 
       {/* Actions — hidden for team pins */}
       {!isTeamPin && (
