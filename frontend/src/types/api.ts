@@ -498,12 +498,14 @@ export interface LeadPinListResponse {
 
 export interface PinActivityCreate {
   notes: string;
+  activity_type?: string;
 }
 
 export interface PinActivityResponse {
   id: string;
   lead_pin_id: string;
   disposition: LeadPinDisposition;
+  activity_type: string;
   notes?: string;
   created_at: string;
 }

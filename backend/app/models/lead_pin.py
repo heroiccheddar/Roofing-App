@@ -156,6 +156,10 @@ class PinActivity(Base):
     # Optional notes for this specific interaction
     notes = Column(Text, nullable=True)
 
+    # Activity type — distinguishes system-created disposition changes from
+    # user-created communication log entries (call, text, email, visit, note)
+    activity_type = Column(String, server_default="disposition_change", nullable=False)
+
     # Timestamp
     created_at = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

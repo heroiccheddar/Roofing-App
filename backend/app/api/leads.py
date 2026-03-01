@@ -300,6 +300,7 @@ async def create_lead_pin(
         roofer_account_id=current_user.id,
         disposition=body.disposition,
         notes=body.notes,
+        activity_type="disposition_change",
     )
     db.add(activity)
 
@@ -539,6 +540,7 @@ async def update_lead_pin(
         roofer_account_id=current_user.id,
         disposition=pin.disposition,
         notes=body.notes,
+        activity_type="disposition_change",
     )
     db.add(activity)
 
@@ -642,6 +644,7 @@ async def get_pin_activities(
                 id=a.id,
                 lead_pin_id=a.lead_pin_id,
                 disposition=a.disposition,
+                activity_type=a.activity_type,
                 notes=a.notes,
                 created_at=a.created_at,
             )
@@ -698,6 +701,7 @@ async def create_pin_activity(
         roofer_account_id=current_user.id,
         disposition=pin.disposition,
         notes=body.notes,
+        activity_type=body.activity_type,
     )
     db.add(activity)
     await db.commit()
@@ -707,6 +711,7 @@ async def create_pin_activity(
         id=activity.id,
         lead_pin_id=activity.lead_pin_id,
         disposition=activity.disposition,
+        activity_type=activity.activity_type,
         notes=activity.notes,
         created_at=activity.created_at,
     )

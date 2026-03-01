@@ -88,9 +88,18 @@ class LeadPinUpdate(BaseModel):
 
 
 class PinActivityCreate(BaseModel):
-    """Body for POST /leads/{pin_id}/activities — log a visit note."""
+    """Body for POST /leads/{pin_id}/activities — log a communication log entry."""
 
     notes: str = Field(..., min_length=1, max_length=1000, description="Visit note")
+    activity_type: str = Field(default="note", description="Type: call, text, email, visit, note")
+
+    @field_validator("activity_type")
+    @classmethod
+    def validate_activity_type(cls, v: str) -> str:
+        valid = {"call", "text", "email", "visit", "note"}
+        if v not in valid:
+            raise ValueError(f"activity_type must be one of: {sorted(valid)}, got '{v}'")
+        return v
 
 
 # ---------------------------------------------------------------------------
@@ -141,6 +150,7 @@ class PinActivityResponse(BaseModel):
     id: UUID = Field(..., description="Activity UUID")
     lead_pin_id: UUID = Field(..., description="Parent pin ID")
     disposition: str = Field(..., description="Disposition recorded at this interaction")
+    activity_type: str = Field(..., description="Activity type: disposition_change, call, text, email, visit, note")
     notes: str | None = Field(None, description="Notes recorded at this interaction")
     created_at: datetime = Field(..., description="Interaction timestamp")
 

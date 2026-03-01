@@ -41,6 +41,17 @@ const DISPOSITION_ORDER: LeadPinDisposition[] = [
   'not_interested',
 ]
 
+const ACTIVITY_TYPE_LABELS: Record<string, string> = {
+  disposition_change: 'Status Change',
+  call: 'Call',
+  text: 'Text',
+  email: 'Email',
+  visit: 'Visit',
+  note: 'Note',
+}
+
+const USER_ACTIVITY_TYPES = ['call', 'text', 'email', 'visit', 'note'] as const
+
 // ===== Disposition Picker =====
 
 interface DispositionPickerProps {
@@ -1032,6 +1043,7 @@ function PinDetail({ pin, onBack }: PinDetailProps) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [showLogNote, setShowLogNote] = useState(false)
   const [noteText, setNoteText] = useState('')
+  const [logType, setLogType] = useState<string>('note')
   const [dealValue, setDealValue] = useState<string>(
     pin.estimated_value != null ? String(pin.estimated_value) : ''
   )
@@ -1073,10 +1085,11 @@ function PinDetail({ pin, onBack }: PinDetailProps) {
   const handleLogNote = () => {
     if (!noteText.trim()) return
     createActivity.mutate(
-      { pinId: pin.id, data: { notes: noteText.trim() } },
+      { pinId: pin.id, data: { notes: noteText.trim(), activity_type: logType } },
       {
         onSuccess: () => {
           setNoteText('')
+          setLogType('note')
           setShowLogNote(false)
         },
       },
@@ -1391,7 +1404,7 @@ function PinDetail({ pin, onBack }: PinDetailProps) {
             </button>
           )}
 
-          {/* Log Note */}
+          {/* Log Activity */}
           {!showLogNote ? (
             <button
               onClick={() => setShowLogNote(true)}
@@ -1408,14 +1421,40 @@ function PinDetail({ pin, onBack }: PinDetailProps) {
                 marginBottom: 16,
               }}
             >
-              Log Note
+              Log Activity
             </button>
           ) : (
             <div style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', gap: 4, marginBottom: 8, flexWrap: 'wrap' }}>
+                {USER_ACTIVITY_TYPES.map((type) => (
+                  <button
+                    key={type}
+                    onClick={() => setLogType(type)}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: 12,
+                      border: logType === type ? 'none' : `1px solid ${borderColor}`,
+                      background: logType === type ? '#2563eb' : 'transparent',
+                      color: logType === type ? '#ffffff' : textSecondary,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {ACTIVITY_TYPE_LABELS[type]}
+                  </button>
+                ))}
+              </div>
               <textarea
                 value={noteText}
                 onChange={(e) => setNoteText(e.target.value)}
-                placeholder="Add a note about this visit..."
+                placeholder={
+                  logType === 'call' ? 'What was discussed on the call...' :
+                  logType === 'text' ? 'What was the text about...' :
+                  logType === 'email' ? 'Email summary...' :
+                  logType === 'visit' ? 'What happened during the visit...' :
+                  'Add a note...'
+                }
                 maxLength={1000}
                 style={{
                   width: '100%',
@@ -1450,10 +1489,10 @@ function PinDetail({ pin, onBack }: PinDetailProps) {
                     opacity: !noteText.trim() || createActivity.isPending ? 0.5 : 1,
                   }}
                 >
-                  {createActivity.isPending ? 'Saving...' : 'Save Note'}
+                  {createActivity.isPending ? 'Saving...' : 'Save'}
                 </button>
                 <button
-                  onClick={() => { setShowLogNote(false); setNoteText('') }}
+                  onClick={() => { setShowLogNote(false); setNoteText(''); setLogType('note') }}
                   style={{
                     flex: 1,
                     padding: '7px 0',
@@ -1476,9 +1515,9 @@ function PinDetail({ pin, onBack }: PinDetailProps) {
       {/* Photos */}
       <PhotoGallery pinId={pin.id} isOwner={!isTeamPin} />
 
-      {/* Activity timeline */}
+      {/* Communication Log */}
       <div style={{ fontSize: 13, fontWeight: 600, color: textSecondary, marginBottom: 8 }}>
-        Activity History
+        Communication Log
       </div>
       {activitiesLoading && (
         <div style={{ fontSize: 13, color: textSecondary, textAlign: 'center', padding: 16 }}>
@@ -1509,7 +1548,22 @@ function PinDetail({ pin, onBack }: PinDetailProps) {
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                <DispositionBadge disposition={activity.disposition} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {activity.activity_type === 'disposition_change' ? (
+                    <DispositionBadge disposition={activity.disposition} />
+                  ) : (
+                    <span style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      padding: '2px 8px',
+                      borderRadius: 10,
+                      background: darkMode ? '#1e3a5f' : '#dbeafe',
+                      color: darkMode ? '#93c5fd' : '#2563eb',
+                    }}>
+                      {ACTIVITY_TYPE_LABELS[activity.activity_type] ?? activity.activity_type}
+                    </span>
+                  )}
+                </div>
                 <span style={{ fontSize: 11, color: textSecondary }}>
                   {timeAgo(activity.created_at)}
                 </span>
