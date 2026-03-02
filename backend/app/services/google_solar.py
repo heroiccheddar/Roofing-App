@@ -73,7 +73,17 @@ async def fetch_solar_insights(lat: float, lon: float) -> dict[str, Any]:
             f"Google Solar API found no building at ({lat:.6f}, {lon:.6f})"
         )
 
-    response.raise_for_status()
+    if response.status_code != 200:
+        # Extract Google's error message for better debugging
+        try:
+            error_body = response.json()
+            error_msg = error_body.get("error", {}).get("message", response.text)
+        except Exception:
+            error_msg = response.text
+        raise RuntimeError(
+            f"Google Solar API returned {response.status_code}: {error_msg}"
+        )
+
     return response.json()
 
 

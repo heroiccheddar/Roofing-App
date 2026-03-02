@@ -81,7 +81,7 @@ async def fetch_roof_data(
         )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Google Solar API request failed",
+            detail=f"Google Solar API error: {exc}",
         ) from exc
 
     return RoofDataResponse(**data)
