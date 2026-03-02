@@ -58,6 +58,7 @@ import type {
   EstimateCreate,
   EstimateUpdate,
   EstimateListResponse,
+  RoofDataResponse,
 } from '../types/api';
 
 // ===== Configuration =====
@@ -553,6 +554,12 @@ export async function getPropertiesGeoJSON(
 
 export async function getProperty(propertyId: string): Promise<PropertyResponse> {
   return apiFetch<PropertyResponse>(`/api/v1/properties/${propertyId}`);
+}
+
+export async function fetchRoofData(propertyId: string): Promise<RoofDataResponse> {
+  return apiFetch<RoofDataResponse>(`/api/v1/properties/${propertyId}/roof-data`, {
+    method: 'POST',
+  });
 }
 
 // ===== Leaderboard & Metrics =====

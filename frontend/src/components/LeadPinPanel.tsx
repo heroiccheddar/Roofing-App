@@ -16,6 +16,7 @@ import { useLeadPins, useLeadPinDetail, useUpdateLeadPin, useDeleteLeadPin, useL
 import { useEstimates, useCreateEstimate, useUpdateEstimate, useDeleteEstimate } from '../hooks/useEstimates'
 import { DispositionBadge, DISPOSITION_COLORS, DISPOSITION_LABELS } from './ZoneDetailHelpers'
 import PhotoGallery from './PhotoGallery'
+import { useFetchRoofData } from '../hooks/useRoofData'
 import type { LeadPinDisposition, LeadPinResponse, EstimateResponse, LineItem } from '../types/api'
 
 // ===== Helpers =====
@@ -381,12 +382,13 @@ ${branding.companyName ? `<div class="footer">${branding.companyName}${branding.
 
 interface EstimateBuilderProps {
   pinId: string
+  propertyId?: string
   initial?: EstimateResponse
   onSaved: () => void
   onCancel: () => void
 }
 
-function EstimateBuilder({ pinId, initial, onSaved, onCancel }: EstimateBuilderProps) {
+function EstimateBuilder({ pinId, propertyId, initial, onSaved, onCancel }: EstimateBuilderProps) {
   const darkMode = useAppStore((s) => s.darkMode)
   const createEstimate = useCreateEstimate()
   const updateEstimate = useUpdateEstimate()
@@ -399,6 +401,32 @@ function EstimateBuilder({ pinId, initial, onSaved, onCancel }: EstimateBuilderP
   )
   const [notes, setNotes] = useState(initial?.notes ?? '')
   const [status, setStatus] = useState(initial?.status ?? 'draft')
+
+  const { data: roofProperty } = useProperty(propertyId)
+  const fetchRoof = useFetchRoofData()
+
+  function autoFillFromRoof() {
+    if (!roofProperty?.roof_area_sqft) return
+    const wasteFactor = 1.12
+    const squares = Math.round((roofProperty.roof_area_sqft * wasteFactor / 100) * 10) / 10
+    const avgPitch = roofProperty.roof_avg_pitch_deg ?? 0
+
+    const items: LineItem[] = [
+      { description: 'Tear-off existing roofing', quantity: squares, unit: 'sq', unit_price: 0, total: 0 },
+      { description: 'Synthetic underlayment', quantity: squares, unit: 'sq', unit_price: 0, total: 0 },
+      { description: 'Architectural shingles — install', quantity: squares, unit: 'sq', unit_price: 0, total: 0 },
+      { description: 'Drip edge & flashing', quantity: 1, unit: 'lot', unit_price: 0, total: 0 },
+      { description: 'Ridge cap shingles', quantity: 1, unit: 'lot', unit_price: 0, total: 0 },
+    ]
+
+    if (avgPitch >= 37) {
+      items.push({ description: 'Very steep pitch surcharge (40%)', quantity: squares, unit: 'sq', unit_price: 0, total: 0 })
+    } else if (avgPitch >= 30) {
+      items.push({ description: 'Steep pitch surcharge (20%)', quantity: squares, unit: 'sq', unit_price: 0, total: 0 })
+    }
+
+    setLineItems(items)
+  }
 
   const taxRate = parseFloat(taxRateStr) / 100 || 0
   const { subtotal, total } = computeTotals(lineItems, taxRate)
@@ -491,6 +519,49 @@ function EstimateBuilder({ pinId, initial, onSaved, onCancel }: EstimateBuilderP
           </button>
         ))}
       </div>
+
+      {/* Auto-fill from roof data */}
+      {propertyId && roofProperty?.has_roof_data && roofProperty.roof_area_sqft && !initial && (
+        <button
+          onClick={autoFillFromRoof}
+          style={{
+            width: '100%',
+            padding: '6px 0',
+            marginBottom: 8,
+            borderRadius: 6,
+            border: '1px solid #16a34a',
+            background: 'transparent',
+            color: '#16a34a',
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
+        >
+          Auto-fill from roof data ({(roofProperty.roof_area_sqft / 100).toFixed(1)} sq
+          {roofProperty.roof_avg_pitch_deg != null && roofProperty.roof_avg_pitch_deg >= 30
+            ? ` \u2022 ${roofProperty.roof_avg_pitch_deg >= 37 ? 'very steep' : 'steep'} pitch`
+            : ''})
+        </button>
+      )}
+      {propertyId && !roofProperty?.has_roof_data && (
+        <button
+          onClick={() => fetchRoof.mutate(propertyId)}
+          disabled={fetchRoof.isPending}
+          style={{
+            width: '100%',
+            padding: '6px 0',
+            marginBottom: 8,
+            borderRadius: 6,
+            border: `1px dashed ${borderColor}`,
+            background: 'transparent',
+            color: textSecondary,
+            fontSize: 12,
+            cursor: fetchRoof.isPending ? 'wait' : 'pointer',
+          }}
+        >
+          {fetchRoof.isPending ? 'Fetching roof data...' : 'Fetch roof data to auto-fill'}
+        </button>
+      )}
 
       {/* Line items table */}
       <div style={{ marginBottom: 8 }}>
@@ -911,11 +982,12 @@ function EstimateCard({ estimate, isOwner, branding, onEdit, onDelete, isDeletin
 
 interface EstimatesSectionProps {
   pinId: string
+  propertyId?: string
   isOwner: boolean
   branding: PrintBranding
 }
 
-function EstimatesSection({ pinId, isOwner, branding }: EstimatesSectionProps) {
+function EstimatesSection({ pinId, propertyId, isOwner, branding }: EstimatesSectionProps) {
   const darkMode = useAppStore((s) => s.darkMode)
   const { data: estimatesData, isLoading } = useEstimates(pinId)
   const deleteEstimate = useDeleteEstimate()
@@ -986,6 +1058,7 @@ function EstimatesSection({ pinId, isOwner, branding }: EstimatesSectionProps) {
       {showBuilder && (
         <EstimateBuilder
           pinId={pinId}
+          propertyId={propertyId}
           initial={editingEstimate ?? undefined}
           onSaved={handleBuilderDone}
           onCancel={handleBuilderDone}
@@ -1039,6 +1112,7 @@ function PinDetail({ pin, onBack }: PinDetailProps) {
   const updatePin = useUpdateLeadPin()
   const deletePin = useDeleteLeadPin()
   const createActivity = useCreatePinActivity()
+  const fetchRoofData = useFetchRoofData()
   const [showUpdatePicker, setShowUpdatePicker] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [showLogNote, setShowLogNote] = useState(false)
@@ -1278,6 +1352,32 @@ function PinDetail({ pin, onBack }: PinDetailProps) {
           <div style={{ fontSize: 11, fontWeight: 600, color: textSecondary, textTransform: 'uppercase', marginBottom: 8 }}>
             Property Info
           </div>
+          {!propertyData.has_roof_data && (
+            <button
+              onClick={() => fetchRoofData.mutate(pin.property_id!)}
+              disabled={fetchRoofData.isPending}
+              style={{
+                width: '100%',
+                padding: '6px 0',
+                marginBottom: 8,
+                borderRadius: 6,
+                border: '1px solid #2563eb',
+                background: 'transparent',
+                color: '#2563eb',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: fetchRoofData.isPending ? 'wait' : 'pointer',
+                opacity: fetchRoofData.isPending ? 0.7 : 1,
+              }}
+            >
+              {fetchRoofData.isPending ? 'Fetching Roof Data...' : 'Fetch Roof Data'}
+            </button>
+          )}
+          {fetchRoofData.isError && (
+            <div style={{ fontSize: 11, color: '#ef4444', marginBottom: 6 }}>
+              Failed to fetch roof data. Try again later.
+            </div>
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', fontSize: 13 }}>
             {propertyData.owner_name && (
               <>
@@ -1315,12 +1415,50 @@ function PinDetail({ pin, onBack }: PinDetailProps) {
                 <span style={{ color: textPrimary, fontWeight: 500 }}>{propertyData.property_type}</span>
               </>
             )}
+            {propertyData.roof_area_sqft && (
+              <>
+                <span style={{ color: textSecondary }}>Roof Area</span>
+                <span style={{ color: textPrimary, fontWeight: 500 }}>
+                  {Math.round(propertyData.roof_area_sqft).toLocaleString()} sf
+                  <span style={{ color: textSecondary, fontWeight: 400, fontSize: 11 }}>
+                    {' '}({(propertyData.roof_area_sqft / 100).toFixed(1)} sq)
+                  </span>
+                </span>
+              </>
+            )}
+            {propertyData.roof_facet_count != null && (
+              <>
+                <span style={{ color: textSecondary }}>Roof Facets</span>
+                <span style={{ color: textPrimary, fontWeight: 500 }}>{propertyData.roof_facet_count}</span>
+              </>
+            )}
+            {propertyData.roof_avg_pitch_deg != null && (
+              <>
+                <span style={{ color: textSecondary }}>Avg Pitch</span>
+                <span style={{ color: textPrimary, fontWeight: 500 }}>
+                  {propertyData.roof_avg_pitch_deg.toFixed(1)}{'\u00B0'}
+                  {propertyData.roof_avg_pitch_deg >= 30 && (
+                    <span style={{
+                      marginLeft: 6,
+                      padding: '1px 6px',
+                      borderRadius: 8,
+                      fontSize: 10,
+                      fontWeight: 700,
+                      background: propertyData.roof_avg_pitch_deg >= 37 ? '#fef2f2' : '#fffbeb',
+                      color: propertyData.roof_avg_pitch_deg >= 37 ? '#ef4444' : '#f59e0b',
+                    }}>
+                      {propertyData.roof_avg_pitch_deg >= 37 ? 'Very Steep' : 'Steep'}
+                    </span>
+                  )}
+                </span>
+              </>
+            )}
           </div>
         </div>
       )}
 
       {/* Estimates */}
-      <EstimatesSection pinId={pin.id} isOwner={!isTeamPin} branding={{
+      <EstimatesSection pinId={pin.id} propertyId={pin.property_id ?? undefined} isOwner={!isTeamPin} branding={{
         companyName: user?.companyName,
         email: user?.email,
         address: pin.address ?? undefined,

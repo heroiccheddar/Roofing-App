@@ -425,6 +425,12 @@ export interface PropertyResponse {
   last_sale_price?: number;
   latitude?: number;
   longitude?: number;
+  // Roof geometry (from Google Solar API)
+  roof_area_sqft?: number;
+  roof_facet_count?: number;
+  roof_avg_pitch_deg?: number;
+  roof_max_pitch_deg?: number;
+  has_roof_data?: boolean;
 }
 
 export interface PropertyListResponse {
@@ -678,4 +684,26 @@ export interface AnalyticsDashboardResponse {
   summary: AnalyticsSummary
   daily_activity: DailyActivity[]
   funnel: FunnelStage[]
+}
+
+// ===== Roof Data (Google Solar API) =====
+
+export interface RoofFacet {
+  area_sqft: number;
+  pitch_deg: number;
+  azimuth_deg: number;
+}
+
+export interface RoofDataResponse {
+  roof_area_sqft: number;
+  roof_ground_area_sqft?: number;
+  roof_facet_count: number;
+  roof_avg_pitch_deg: number;
+  roof_max_pitch_deg: number;
+  roof_facets: RoofFacet[];
+  imagery_date?: string;
+  imagery_quality?: string;
+  roof_squares: number;
+  steep_pitch: boolean;
+  pitch_category: string;
 }

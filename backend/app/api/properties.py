@@ -188,4 +188,9 @@ async def get_property(
         last_sale_price=prop.last_sale_price,
         latitude=lat,
         longitude=lon,
+        roof_area_sqft=prop.roof_area_sqft,
+        roof_facet_count=prop.roof_facet_count,
+        roof_avg_pitch_deg=prop.roof_avg_pitch_deg,
+        roof_max_pitch_deg=prop.roof_max_pitch_deg,
+        has_roof_data=prop.solar_fetched_at is not None,
     )

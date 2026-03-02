@@ -31,6 +31,13 @@ class PropertyResponse(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
 
+    # Roof geometry (from Google Solar API)
+    roof_area_sqft: Optional[float] = None
+    roof_facet_count: Optional[int] = None
+    roof_avg_pitch_deg: Optional[float] = None
+    roof_max_pitch_deg: Optional[float] = None
+    has_roof_data: Optional[bool] = None
+
 
 class PropertyListResponse(BaseModel):
     properties: list[PropertyResponse]
@@ -69,3 +76,23 @@ class PropertyGeoJSONResponse(BaseModel):
 
     type: str = "FeatureCollection"
     features: list[PropertyGeoJSONFeature] = []
+
+
+class RoofFacet(BaseModel):
+    area_sqft: float
+    pitch_deg: float
+    azimuth_deg: float
+
+
+class RoofDataResponse(BaseModel):
+    roof_area_sqft: float
+    roof_ground_area_sqft: float | None = None
+    roof_facet_count: int
+    roof_avg_pitch_deg: float
+    roof_max_pitch_deg: float
+    roof_facets: list[RoofFacet]
+    imagery_date: str | None = None
+    imagery_quality: str | None = None
+    roof_squares: float
+    steep_pitch: bool
+    pitch_category: str

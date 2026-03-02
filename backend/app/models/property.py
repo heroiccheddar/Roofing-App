@@ -66,6 +66,17 @@ class Property(Base):
     estimated_roof_age = Column(Integer, nullable=True)
     roof_material = Column(String, nullable=True)
 
+    # Roof geometry (Google Solar API)
+    roof_area_sqft = Column(Float, nullable=True)
+    roof_ground_area_sqft = Column(Float, nullable=True)
+    roof_facet_count = Column(Integer, nullable=True)
+    roof_avg_pitch_deg = Column(Float, nullable=True)
+    roof_max_pitch_deg = Column(Float, nullable=True)
+    roof_facets = Column(JSONB, nullable=True)
+    solar_imagery_date = Column(Date, nullable=True)
+    solar_imagery_quality = Column(String, nullable=True)
+    solar_fetched_at = Column(DateTime(timezone=True), nullable=True)
+
     # Raw data preservation
     raw_attributes = Column(JSONB, nullable=True)
 

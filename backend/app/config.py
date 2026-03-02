@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     # OpenRouteService (for driving route optimization)
     OPENROUTESERVICE_API_KEY: str = ""
 
+    # Google Solar API (roof measurements)
+    GOOGLE_SOLAR_API_KEY: str = ""
+
     # CORS
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
 

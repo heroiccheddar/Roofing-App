@@ -28,6 +28,7 @@ from app.api.org import router as org_router
 from app.api.analytics import router as analytics_router
 from app.api.metrics import router as metrics_router
 from app.api.photos import router as photos_router
+from app.api.roof_data import router as roof_data_router
 from app.scheduler.jobs import (
     job_poll_nws,
     job_scrape_spc,
@@ -151,6 +152,7 @@ app.include_router(org_router, prefix="/api/v1")
 app.include_router(analytics_router, prefix="/api/v1")
 app.include_router(metrics_router, prefix="/api/v1")
 app.include_router(photos_router, prefix="/api/v1")
+app.include_router(roof_data_router, prefix="/api/v1")
 
 
 @app.get("/health")
