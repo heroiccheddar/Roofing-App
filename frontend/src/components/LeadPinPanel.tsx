@@ -11,6 +11,7 @@
 
 import { useState, useEffect } from 'react'
 import useAppStore from '../stores/appStore'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 import { exportLeadsCsv } from '../api/client'
 import { useLeadPins, useLeadPinDetail, useUpdateLeadPin, useDeleteLeadPin, useLeadPinActivities, useCreatePinActivity, useProperty } from '../hooks/useLeadPins'
 import { useEstimates, useCreateEstimate, useUpdateEstimate, useDeleteEstimate } from '../hooks/useEstimates'
@@ -390,6 +391,7 @@ interface EstimateBuilderProps {
 
 function EstimateBuilder({ pinId, propertyId, initial, onSaved, onCancel }: EstimateBuilderProps) {
   const darkMode = useAppStore((s) => s.darkMode)
+  const isMobile = useMediaQuery('(max-width: 767px)')
   const createEstimate = useCreateEstimate()
   const updateEstimate = useUpdateEstimate()
 
@@ -497,14 +499,14 @@ function EstimateBuilder({ pinId, propertyId, initial, onSaved, onCancel }: Esti
       marginTop: 8,
     }}>
       {/* Status selector */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 12, color: textSecondary, flexShrink: 0 }}>Status:</span>
         {(['draft', 'sent', 'accepted', 'declined'] as const).map((s) => (
           <button
             key={s}
             onClick={() => setStatus(s)}
             style={{
-              padding: '3px 9px',
+              padding: isMobile ? '6px 12px' : '3px 9px',
               borderRadius: 12,
               border: `1px solid ${status === s ? ESTIMATE_STATUS_COLORS[s] : borderColor}`,
               background: status === s ? `${ESTIMATE_STATUS_COLORS[s]}20` : 'transparent',
@@ -513,6 +515,7 @@ function EstimateBuilder({ pinId, propertyId, initial, onSaved, onCancel }: Esti
               fontWeight: status === s ? 700 : 500,
               cursor: 'pointer',
               textTransform: 'capitalize',
+              minHeight: isMobile ? 36 : undefined,
             }}
           >
             {s}
@@ -526,7 +529,7 @@ function EstimateBuilder({ pinId, propertyId, initial, onSaved, onCancel }: Esti
           onClick={autoFillFromRoof}
           style={{
             width: '100%',
-            padding: '6px 0',
+            padding: isMobile ? '10px 0' : '6px 0',
             marginBottom: 8,
             borderRadius: 6,
             border: '1px solid #16a34a',
@@ -535,6 +538,7 @@ function EstimateBuilder({ pinId, propertyId, initial, onSaved, onCancel }: Esti
             fontSize: 12,
             fontWeight: 600,
             cursor: 'pointer',
+            minHeight: isMobile ? 44 : undefined,
           }}
         >
           Auto-fill from roof data ({(roofProperty.roof_area_sqft / 100).toFixed(1)} sq
@@ -549,7 +553,7 @@ function EstimateBuilder({ pinId, propertyId, initial, onSaved, onCancel }: Esti
           disabled={fetchRoof.isPending}
           style={{
             width: '100%',
-            padding: '6px 0',
+            padding: isMobile ? '10px 0' : '6px 0',
             marginBottom: 8,
             borderRadius: 6,
             border: `1px dashed ${borderColor}`,
@@ -557,6 +561,7 @@ function EstimateBuilder({ pinId, propertyId, initial, onSaved, onCancel }: Esti
             color: textSecondary,
             fontSize: 12,
             cursor: fetchRoof.isPending ? 'wait' : 'pointer',
+            minHeight: isMobile ? 44 : undefined,
           }}
         >
           {fetchRoof.isPending ? 'Fetching roof data...' : 'Fetch roof data to auto-fill'}
@@ -565,83 +570,151 @@ function EstimateBuilder({ pinId, propertyId, initial, onSaved, onCancel }: Esti
 
       {/* Line items table */}
       <div style={{ marginBottom: 8 }}>
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: '3fr 1fr 1fr 1.5fr 1.5fr 28px',
-          gap: 4,
-          marginBottom: 4,
-        }}>
-          {['Description', 'Qty', 'Unit', 'Unit Price', 'Total', ''].map((label) => (
-            <div key={label} style={{ fontSize: 10, fontWeight: 600, color: textSecondary, textTransform: 'uppercase', paddingLeft: 2 }}>
-              {label}
-            </div>
-          ))}
-        </div>
-        {lineItems.map((item, i) => (
-          <div
-            key={i}
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '3fr 1fr 1fr 1.5fr 1.5fr 28px',
-              gap: 4,
-              marginBottom: 4,
-              alignItems: 'center',
-            }}
-          >
-            <input
-              value={item.description}
-              onChange={(e) => updateItem(i, 'description', e.target.value)}
-              placeholder="e.g. Remove old shingles"
-              style={inputStyle}
-            />
-            <input
-              type="number"
-              min={0}
-              value={item.quantity}
-              onChange={(e) => updateItem(i, 'quantity', parseFloat(e.target.value) || 0)}
-              style={inputStyle}
-            />
-            <input
-              value={item.unit}
-              onChange={(e) => updateItem(i, 'unit', e.target.value)}
-              placeholder="sq"
-              style={inputStyle}
-            />
-            <input
-              type="number"
-              min={0}
-              step={0.01}
-              value={item.unit_price}
-              onChange={(e) => updateItem(i, 'unit_price', parseFloat(e.target.value) || 0)}
-              style={inputStyle}
-            />
-            <div style={{ fontSize: 12, color: textPrimary, fontWeight: 500, paddingLeft: 2 }}>
-              {formatCurrency(item.total)}
-            </div>
-            <button
-              onClick={() => removeItem(i)}
-              disabled={lineItems.length === 1}
-              title="Remove line"
+        {/* Desktop header row */}
+        {!isMobile && (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '3fr 1fr 1fr 1.5fr 1.5fr 28px',
+            gap: 4,
+            marginBottom: 4,
+          }}>
+            {['Description', 'Qty', 'Unit', 'Unit Price', 'Total', ''].map((label) => (
+              <div key={label} style={{ fontSize: 10, fontWeight: 600, color: textSecondary, textTransform: 'uppercase', paddingLeft: 2 }}>
+                {label}
+              </div>
+            ))}
+          </div>
+        )}
+        {lineItems.map((item, i) =>
+          isMobile ? (
+            /* Mobile: stacked card layout */
+            <div
+              key={i}
               style={{
-                width: 24,
-                height: 24,
-                borderRadius: 4,
+                marginBottom: 8,
+                padding: 8,
+                borderRadius: 6,
                 border: `1px solid ${borderColor}`,
-                background: 'transparent',
-                color: textSecondary,
-                fontSize: 13,
-                cursor: lineItems.length === 1 ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: 0,
-                opacity: lineItems.length === 1 ? 0.4 : 1,
+                background: darkMode ? '#0f172a' : '#ffffff',
               }}
             >
-              x
-            </button>
-          </div>
-        ))}
+              <div style={{ display: 'flex', gap: 4, marginBottom: 6, alignItems: 'center' }}>
+                <input
+                  value={item.description}
+                  onChange={(e) => updateItem(i, 'description', e.target.value)}
+                  placeholder="e.g. Remove old shingles"
+                  style={{ ...inputStyle, flex: 1 }}
+                />
+                <button
+                  onClick={() => removeItem(i)}
+                  disabled={lineItems.length === 1}
+                  title="Remove line"
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 4,
+                    border: `1px solid ${borderColor}`,
+                    background: 'transparent',
+                    color: textSecondary,
+                    fontSize: 13,
+                    cursor: lineItems.length === 1 ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 0,
+                    flexShrink: 0,
+                    opacity: lineItems.length === 1 ? 0.4 : 1,
+                  }}
+                >
+                  x
+                </button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 4, alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: 9, fontWeight: 600, color: textSecondary, textTransform: 'uppercase', marginBottom: 2 }}>Qty</div>
+                  <input type="number" min={0} value={item.quantity} onChange={(e) => updateItem(i, 'quantity', parseFloat(e.target.value) || 0)} style={inputStyle} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 9, fontWeight: 600, color: textSecondary, textTransform: 'uppercase', marginBottom: 2 }}>Unit</div>
+                  <input value={item.unit} onChange={(e) => updateItem(i, 'unit', e.target.value)} placeholder="sq" style={inputStyle} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 9, fontWeight: 600, color: textSecondary, textTransform: 'uppercase', marginBottom: 2 }}>Price</div>
+                  <input type="number" min={0} step={0.01} value={item.unit_price} onChange={(e) => updateItem(i, 'unit_price', parseFloat(e.target.value) || 0)} style={inputStyle} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 9, fontWeight: 600, color: textSecondary, textTransform: 'uppercase', marginBottom: 2 }}>Total</div>
+                  <div style={{ fontSize: 12, color: textPrimary, fontWeight: 500, padding: '5px 2px' }}>{formatCurrency(item.total)}</div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* Desktop: 6-column grid row */
+            <div
+              key={i}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '3fr 1fr 1fr 1.5fr 1.5fr 28px',
+                gap: 4,
+                marginBottom: 4,
+                alignItems: 'center',
+              }}
+            >
+              <input
+                value={item.description}
+                onChange={(e) => updateItem(i, 'description', e.target.value)}
+                placeholder="e.g. Remove old shingles"
+                style={inputStyle}
+              />
+              <input
+                type="number"
+                min={0}
+                value={item.quantity}
+                onChange={(e) => updateItem(i, 'quantity', parseFloat(e.target.value) || 0)}
+                style={inputStyle}
+              />
+              <input
+                value={item.unit}
+                onChange={(e) => updateItem(i, 'unit', e.target.value)}
+                placeholder="sq"
+                style={inputStyle}
+              />
+              <input
+                type="number"
+                min={0}
+                step={0.01}
+                value={item.unit_price}
+                onChange={(e) => updateItem(i, 'unit_price', parseFloat(e.target.value) || 0)}
+                style={inputStyle}
+              />
+              <div style={{ fontSize: 12, color: textPrimary, fontWeight: 500, paddingLeft: 2 }}>
+                {formatCurrency(item.total)}
+              </div>
+              <button
+                onClick={() => removeItem(i)}
+                disabled={lineItems.length === 1}
+                title="Remove line"
+                style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: 4,
+                  border: `1px solid ${borderColor}`,
+                  background: 'transparent',
+                  color: textSecondary,
+                  fontSize: 13,
+                  cursor: lineItems.length === 1 ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 0,
+                  opacity: lineItems.length === 1 ? 0.4 : 1,
+                }}
+              >
+                x
+              </button>
+            </div>
+          )
+        )}
         <button
           onClick={addItem}
           style={{
@@ -710,7 +783,7 @@ function EstimateBuilder({ pinId, propertyId, initial, onSaved, onCancel }: Esti
           disabled={isSaving}
           style={{
             flex: 2,
-            padding: '7px 0',
+            padding: isMobile ? '10px 0' : '7px 0',
             borderRadius: 8,
             border: 'none',
             background: '#2563eb',
@@ -719,6 +792,7 @@ function EstimateBuilder({ pinId, propertyId, initial, onSaved, onCancel }: Esti
             fontWeight: 700,
             cursor: isSaving ? 'wait' : 'pointer',
             opacity: isSaving ? 0.7 : 1,
+            minHeight: isMobile ? 44 : undefined,
           }}
         >
           {isSaving ? 'Saving...' : (initial ? 'Update Estimate' : 'Save Estimate')}
@@ -727,13 +801,14 @@ function EstimateBuilder({ pinId, propertyId, initial, onSaved, onCancel }: Esti
           onClick={onCancel}
           style={{
             flex: 1,
-            padding: '7px 0',
+            padding: isMobile ? '10px 0' : '7px 0',
             borderRadius: 8,
             border: `1px solid ${borderColor}`,
             background: 'transparent',
             color: textSecondary,
             fontSize: 13,
             cursor: 'pointer',
+            minHeight: isMobile ? 44 : undefined,
           }}
         >
           Cancel

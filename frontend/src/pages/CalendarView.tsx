@@ -12,6 +12,7 @@ import { useQuery } from '@tanstack/react-query'
 import { getLeadPinCallbacks } from '../api/client'
 import { DISPOSITION_LABELS, DISPOSITION_COLORS } from '../components/ZoneDetailHelpers'
 import useAppStore from '../stores/appStore'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 import type { LeadPinResponse } from '../types/api'
 
 // ===== Date helpers =====
@@ -240,6 +241,7 @@ function DayColumn({ date, pins, darkMode, isToday, onPinClick }: DayColumnProps
 export default function CalendarView() {
   const navigate = useNavigate()
   const darkMode = useAppStore((s) => s.darkMode)
+  const isMobile = useMediaQuery('(max-width: 767px)')
   const setSelectedLeadPinId = useAppStore((s) => s.setSelectedLeadPinId)
 
   const [viewMode, setViewMode] = useState<ViewMode>('week')
@@ -382,7 +384,8 @@ export default function CalendarView() {
             fontSize: 15,
             fontWeight: 600,
             cursor: 'pointer',
-            padding: 0,
+            padding: '8px 12px',
+            minHeight: 44,
             flexShrink: 0,
           }}
         >
@@ -404,22 +407,22 @@ export default function CalendarView() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
           <button onClick={goPrev} style={{
             background: 'none', border: `1px solid ${borderColor}`, borderRadius: 6,
-            padding: '4px 10px', fontSize: 14, cursor: 'pointer', color: textSecondary,
-            fontWeight: 600,
+            padding: isMobile ? '8px 14px' : '4px 10px', fontSize: 14, cursor: 'pointer', color: textSecondary,
+            fontWeight: 600, minHeight: isMobile ? 44 : undefined, minWidth: isMobile ? 44 : undefined,
           }}>
             &lsaquo;
           </button>
           <button onClick={goToday} style={{
             background: 'none', border: `1px solid ${borderColor}`, borderRadius: 6,
-            padding: '4px 10px', fontSize: 12, cursor: 'pointer', color: textSecondary,
-            fontWeight: 600,
+            padding: isMobile ? '8px 14px' : '4px 10px', fontSize: 12, cursor: 'pointer', color: textSecondary,
+            fontWeight: 600, minHeight: isMobile ? 44 : undefined,
           }}>
             Today
           </button>
           <button onClick={goNext} style={{
             background: 'none', border: `1px solid ${borderColor}`, borderRadius: 6,
-            padding: '4px 10px', fontSize: 14, cursor: 'pointer', color: textSecondary,
-            fontWeight: 600,
+            padding: isMobile ? '8px 14px' : '4px 10px', fontSize: 14, cursor: 'pointer', color: textSecondary,
+            fontWeight: 600, minHeight: isMobile ? 44 : undefined, minWidth: isMobile ? 44 : undefined,
           }}>
             &rsaquo;
           </button>
@@ -438,7 +441,7 @@ export default function CalendarView() {
               key={mode}
               onClick={() => setViewMode(mode)}
               style={{
-                padding: '4px 12px',
+                padding: isMobile ? '8px 16px' : '4px 12px',
                 fontSize: 12,
                 fontWeight: 600,
                 cursor: 'pointer',
@@ -447,6 +450,7 @@ export default function CalendarView() {
                   ? (darkMode ? '#334155' : '#e2e8f0')
                   : 'transparent',
                 color: viewMode === mode ? textPrimary : textSecondary,
+                minHeight: isMobile ? 44 : undefined,
               }}
             >
               {mode.charAt(0).toUpperCase() + mode.slice(1)}
@@ -464,12 +468,14 @@ export default function CalendarView() {
           color: textSecondary,
           cursor: 'pointer',
           flexShrink: 0,
+          minHeight: isMobile ? 44 : undefined,
+          padding: isMobile ? '4px 0' : undefined,
         }}>
           <input
             type="checkbox"
             checked={team}
             onChange={(e) => setTeam(e.target.checked)}
-            style={{ width: 15, height: 15, cursor: 'pointer' }}
+            style={{ width: isMobile ? 18 : 15, height: isMobile ? 18 : 15, cursor: 'pointer' }}
           />
           Team
         </label>

@@ -12,6 +12,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getAllLeadPins, updateLeadPin } from '../api/client'
 import { DISPOSITION_LABELS, DISPOSITION_COLORS } from '../components/ZoneDetailHelpers'
 import useAppStore from '../stores/appStore'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 import type { LeadPinDisposition, LeadPinResponse } from '../types/api'
 
 // ===== Column order =====
@@ -49,22 +50,26 @@ function formatCurrency(value: number): string {
 interface PinCardProps {
   pin: LeadPinResponse
   darkMode: boolean
+  isMobile: boolean
   onDragStart: (e: React.DragEvent, pinId: string, sourceDisposition: LeadPinDisposition) => void
+  onChangeDisposition: (pinId: string, disposition: LeadPinDisposition) => void
 }
 
-function PinCard({ pin, darkMode, onDragStart }: PinCardProps) {
+function PinCard({ pin, darkMode, isMobile, onDragStart, onChangeDisposition }: PinCardProps) {
+  const [showPicker, setShowPicker] = useState(false)
   const color = DISPOSITION_COLORS[pin.disposition] || '#94a3b8'
 
   return (
     <div
-      draggable
-      onDragStart={(e) => onDragStart(e, pin.id, pin.disposition)}
+      draggable={!isMobile}
+      onDragStart={isMobile ? undefined : (e) => onDragStart(e, pin.id, pin.disposition)}
+      onClick={isMobile ? () => setShowPicker((v) => !v) : undefined}
       style={{
         background: darkMode ? '#0f172a' : '#ffffff',
         border: `1px solid ${darkMode ? '#1e293b' : '#e2e8f0'}`,
         borderRadius: 8,
         padding: '10px 12px',
-        cursor: 'grab',
+        cursor: isMobile ? 'pointer' : 'grab',
         userSelect: 'none',
         marginBottom: 8,
         boxShadow: darkMode
@@ -126,6 +131,42 @@ function PinCard({ pin, darkMode, onDragStart }: PinCardProps) {
           flexShrink: 0,
         }} />
       </div>
+
+      {/* Mobile disposition picker — tap card to reveal, tap pill to move */}
+      {isMobile && showPicker && (
+        <div style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 4,
+          marginTop: 8,
+          paddingTop: 8,
+          borderTop: `1px solid ${darkMode ? '#334155' : '#e2e8f0'}`,
+        }}>
+          {COLUMN_ORDER.filter((d) => d !== pin.disposition).map((d) => (
+            <button
+              key={d}
+              onClick={(e) => {
+                e.stopPropagation()
+                onChangeDisposition(pin.id, d)
+                setShowPicker(false)
+              }}
+              style={{
+                fontSize: 11,
+                padding: '4px 8px',
+                borderRadius: 12,
+                border: 'none',
+                background: (DISPOSITION_COLORS[d] || '#94a3b8') + '22',
+                color: DISPOSITION_COLORS[d] || '#94a3b8',
+                fontWeight: 600,
+                cursor: 'pointer',
+                minHeight: 28,
+              }}
+            >
+              {DISPOSITION_LABELS[d] || d}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -136,10 +177,12 @@ interface KanbanColumnProps {
   totalValue: number
   isOver: boolean
   darkMode: boolean
+  isMobile: boolean
   onDragStart: (e: React.DragEvent, pinId: string, sourceDisposition: LeadPinDisposition) => void
   onDragOver: (e: React.DragEvent, disposition: LeadPinDisposition) => void
   onDragLeave: () => void
   onDrop: (e: React.DragEvent, disposition: LeadPinDisposition) => void
+  onChangeDisposition: (pinId: string, disposition: LeadPinDisposition) => void
 }
 
 function KanbanColumn({
@@ -148,10 +191,12 @@ function KanbanColumn({
   totalValue,
   isOver,
   darkMode,
+  isMobile,
   onDragStart,
   onDragOver,
   onDragLeave,
   onDrop,
+  onChangeDisposition,
 }: KanbanColumnProps) {
   const color = DISPOSITION_COLORS[disposition] || '#94a3b8'
   const label = DISPOSITION_LABELS[disposition] || disposition
@@ -246,7 +291,9 @@ function KanbanColumn({
             key={pin.id}
             pin={pin}
             darkMode={darkMode}
+            isMobile={isMobile}
             onDragStart={onDragStart}
+            onChangeDisposition={onChangeDisposition}
           />
         ))}
       </div>
@@ -260,6 +307,7 @@ export default function PipelineBoard() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const darkMode = useAppStore((s) => s.darkMode)
+  const isMobile = useMediaQuery('(max-width: 767px)')
 
   const [team, setTeam] = useState(false)
   const [dragOverColumn, setDragOverColumn] = useState<LeadPinDisposition | null>(null)
@@ -340,6 +388,10 @@ export default function PipelineBoard() {
     mutation.mutate({ pinId, disposition: targetDisposition })
   }
 
+  function handleChangeDisposition(pinId: string, disposition: LeadPinDisposition) {
+    mutation.mutate({ pinId, disposition })
+  }
+
   // ===== Styles =====
 
   const headerBg = darkMode ? '#0f172a' : '#ffffff'
@@ -380,7 +432,8 @@ export default function PipelineBoard() {
             fontSize: 15,
             fontWeight: 600,
             cursor: 'pointer',
-            padding: 0,
+            padding: '8px 12px',
+            minHeight: 44,
             flexShrink: 0,
           }}
         >
@@ -491,10 +544,12 @@ export default function PipelineBoard() {
                   totalValue={totalValue}
                   isOver={dragOverColumn === disposition}
                   darkMode={darkMode}
+                  isMobile={isMobile}
                   onDragStart={handleDragStart}
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
+                  onChangeDisposition={handleChangeDisposition}
                 />
               )
             })}
