@@ -15,10 +15,10 @@ import { useMediaQuery } from '../hooks/useMediaQuery'
 import { exportLeadsCsv } from '../api/client'
 import { useLeadPins, useLeadPinDetail, useUpdateLeadPin, useDeleteLeadPin, useLeadPinActivities, useCreatePinActivity, useProperty } from '../hooks/useLeadPins'
 import { useEstimates, useCreateEstimate, useUpdateEstimate, useDeleteEstimate } from '../hooks/useEstimates'
-import { DispositionBadge, DISPOSITION_COLORS, DISPOSITION_LABELS } from './ZoneDetailHelpers'
+import { DispositionBadge, DISPOSITION_COLORS, DISPOSITION_LABELS, LeadSourceBadge, LEAD_SOURCE_COLORS, LEAD_SOURCE_LABELS } from './ZoneDetailHelpers'
 import PhotoGallery from './PhotoGallery'
 import { useFetchRoofData } from '../hooks/useRoofData'
-import type { LeadPinDisposition, LeadPinResponse, EstimateResponse, LineItem } from '../types/api'
+import type { LeadPinDisposition, LeadPinSource, LeadPinResponse, EstimateResponse, LineItem } from '../types/api'
 
 // ===== Helpers =====
 
@@ -43,6 +43,8 @@ const DISPOSITION_ORDER: LeadPinDisposition[] = [
   'not_interested',
 ]
 
+const LEAD_SOURCE_ORDER = ['door_knock', 'referral', 'website', 'storm_canvass', 'other'] as const
+
 const ACTIVITY_TYPE_LABELS: Record<string, string> = {
   disposition_change: 'Status Change',
   call: 'Call',
@@ -63,8 +65,9 @@ interface DispositionPickerProps {
   initialContactName?: string
   initialContactPhone?: string
   initialContactEmail?: string
+  initialLeadSource?: LeadPinSource
   title: string
-  onConfirm: (disposition: LeadPinDisposition, notes: string, callbackDate?: string, contactName?: string, contactPhone?: string, contactEmail?: string) => void
+  onConfirm: (disposition: LeadPinDisposition, notes: string, callbackDate?: string, contactName?: string, contactPhone?: string, contactEmail?: string, leadSource?: LeadPinSource) => void
   onCancel: () => void
   isLoading?: boolean
 }
@@ -76,6 +79,7 @@ export function DispositionPicker({
   initialContactName,
   initialContactPhone,
   initialContactEmail,
+  initialLeadSource,
   title,
   onConfirm,
   onCancel,
@@ -89,6 +93,7 @@ export function DispositionPicker({
   const [contactName, setContactName] = useState(initialContactName || '')
   const [contactPhone, setContactPhone] = useState(initialContactPhone || '')
   const [contactEmail, setContactEmail] = useState(initialContactEmail || '')
+  const [leadSource, setLeadSource] = useState<LeadPinSource | undefined>(initialLeadSource)
   const darkMode = useAppStore((s) => s.darkMode)
 
   return (
@@ -216,6 +221,37 @@ export function DispositionPicker({
           </div>
         </div>
 
+        {/* Lead Source */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: darkMode ? '#94a3b8' : '#64748b', textTransform: 'uppercase', marginBottom: 6 }}>
+            Lead Source
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {LEAD_SOURCE_ORDER.map((s) => {
+              const color = LEAD_SOURCE_COLORS[s]
+              const isActive = leadSource === s
+              return (
+                <button
+                  key={s}
+                  onClick={() => setLeadSource(isActive ? undefined : s)}
+                  style={{
+                    padding: '5px 10px',
+                    borderRadius: 12,
+                    border: `1px solid ${isActive ? color : (darkMode ? '#334155' : '#e2e8f0')}`,
+                    background: isActive ? `${color}18` : 'transparent',
+                    color: isActive ? color : (darkMode ? '#94a3b8' : '#64748b'),
+                    fontSize: 11,
+                    fontWeight: isActive ? 700 : 500,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {LEAD_SOURCE_LABELS[s]}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
         {/* Notes textarea */}
         <textarea
           placeholder="Notes (optional)"
@@ -265,7 +301,7 @@ export function DispositionPicker({
             Cancel
           </button>
           <button
-            onClick={() => onConfirm(selected, notes, callbackDate || undefined, contactName || undefined, contactPhone || undefined, contactEmail || undefined)}
+            onClick={() => onConfirm(selected, notes, callbackDate || undefined, contactName || undefined, contactPhone || undefined, contactEmail || undefined, leadSource)}
             disabled={isLoading}
             style={{
               flex: 2,
@@ -1212,9 +1248,9 @@ function PinDetail({ pin, onBack }: PinDetailProps) {
     }
   }
 
-  const handleUpdate = (disposition: LeadPinDisposition, notes: string, callbackDate?: string, contactName?: string, contactPhone?: string, contactEmail?: string) => {
+  const handleUpdate = (disposition: LeadPinDisposition, notes: string, callbackDate?: string, contactName?: string, contactPhone?: string, contactEmail?: string, leadSource?: LeadPinSource) => {
     updatePin.mutate(
-      { pinId: pin.id, data: { disposition, notes, callback_date: callbackDate, contact_name: contactName, contact_phone: contactPhone, contact_email: contactEmail } },
+      { pinId: pin.id, data: { disposition, notes, callback_date: callbackDate, contact_name: contactName, contact_phone: contactPhone, contact_email: contactEmail, lead_source: leadSource } },
       {
         onSuccess: () => {
           setShowUpdatePicker(false)
@@ -1261,6 +1297,7 @@ function PinDetail({ pin, onBack }: PinDetailProps) {
           initialContactName={pin.contact_name}
           initialContactPhone={pin.contact_phone}
           initialContactEmail={pin.contact_email}
+          initialLeadSource={pin.lead_source}
           onConfirm={handleUpdate}
           onCancel={() => setShowUpdatePicker(false)}
           isLoading={updatePin.isPending}
@@ -1295,6 +1332,7 @@ function PinDetail({ pin, onBack }: PinDetailProps) {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <DispositionBadge disposition={pin.disposition} />
+          {pin.lead_source && <LeadSourceBadge source={pin.lead_source} />}
           <span style={{ fontSize: 12, color: textSecondary }}>
             {timeAgo(pin.created_at)}
           </span>

@@ -23,6 +23,7 @@ from app.schemas.analytics import (
     AnalyticsSummary,
     DailyActivityPoint,
     FunnelStage,
+    SourceBreakdown,
 )
 from app.schemas.metrics import LeaderboardPeriod
 
@@ -267,9 +268,29 @@ async def get_analytics_dashboard(
         FunnelStage(stage="Contract Signed", count=contract_signed),
     ]
 
+    # ------------------------------------------------------------------
+    # Source breakdown — group by lead_source, nulls mapped to "unknown"
+    # ------------------------------------------------------------------
+    source_stmt = (
+        select(
+            func.coalesce(LeadPin.lead_source, "unknown").label("source"),
+            func.count().label("count"),
+        )
+        .where(LeadPin.roofer_account_id.in_(target_ids))
+        .group_by(func.coalesce(LeadPin.lead_source, "unknown"))
+        .order_by(func.count().desc())
+    )
+
+    if start is not None:
+        source_stmt = source_stmt.where(LeadPin.created_at >= start)
+
+    source_rows = (await db.execute(source_stmt)).all()
+    source_breakdown = [SourceBreakdown(source=r.source, count=r.count) for r in source_rows]
+
     return AnalyticsDashboardResponse(
         period=period.value,
         summary=summary,
         daily_activity=daily_activity,
         funnel=funnel,
+        source_breakdown=source_breakdown,
     )

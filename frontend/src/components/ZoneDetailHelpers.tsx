@@ -194,3 +194,49 @@ export function DispositionBadge({ disposition }: { disposition: string }) {
     </span>
   )
 }
+
+// ===== Lead Source Badge =====
+
+export const LEAD_SOURCE_COLORS: Record<string, string> = {
+  door_knock: '#6366f1',
+  referral: '#22c55e',
+  website: '#3b82f6',
+  storm_canvass: '#f59e0b',
+  other: '#94a3b8',
+}
+
+export const LEAD_SOURCE_LABELS: Record<string, string> = {
+  door_knock: 'Door Knock',
+  referral: 'Referral',
+  website: 'Website',
+  storm_canvass: 'Storm Canvass',
+  other: 'Other',
+}
+
+export function LeadSourceBadge({ source }: { source: string }) {
+  const color = LEAD_SOURCE_COLORS[source] || '#94a3b8'
+  const label = LEAD_SOURCE_LABELS[source] || source
+  return (
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '6px',
+      padding: '2px 10px',
+      borderRadius: '12px',
+      fontSize: '12px',
+      fontWeight: 600,
+      backgroundColor: `${color}20`,
+      color: color,
+      border: `1px solid ${color}40`,
+    }}>
+      <span style={{
+        width: '8px',
+        height: '8px',
+        borderRadius: '50%',
+        backgroundColor: color,
+        flexShrink: 0,
+      }} />
+      {label}
+    </span>
+  )
+}

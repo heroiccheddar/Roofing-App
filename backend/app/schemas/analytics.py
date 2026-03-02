@@ -43,6 +43,13 @@ class FunnelStage(BaseModel):
     count: int = Field(..., description="Number of pins at this stage in the period")
 
 
+class SourceBreakdown(BaseModel):
+    """Pin count for a single lead source value."""
+
+    source: str = Field(..., description="Lead source value (or 'unknown' if unset)")
+    count: int = Field(..., description="Number of pins with this lead source")
+
+
 class AnalyticsDashboardResponse(BaseModel):
     """Full analytics dashboard payload returned by GET /analytics/dashboard."""
 
@@ -53,4 +60,7 @@ class AnalyticsDashboardResponse(BaseModel):
     )
     funnel: list[FunnelStage] = Field(
         ..., description="Sales funnel stages ordered from broadest to narrowest"
+    )
+    source_breakdown: list[SourceBreakdown] = Field(
+        ..., description="Pin counts grouped by lead source, ordered by count descending"
     )

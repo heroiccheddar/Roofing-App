@@ -10,6 +10,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 
+from app.models.lead_pin import VALID_LEAD_SOURCES
+
 
 # ---------------------------------------------------------------------------
 # Disposition constants
@@ -51,6 +53,7 @@ class LeadPinCreate(BaseModel):
     contact_phone: str | None = Field(None, max_length=30, description="Homeowner phone")
     contact_email: str | None = Field(None, max_length=254, description="Homeowner email")
     estimated_value: float | None = Field(None, description="Estimated deal value")
+    lead_source: str | None = Field(None, description="How this lead was acquired")
 
     @field_validator("disposition")
     @classmethod
@@ -59,6 +62,16 @@ class LeadPinCreate(BaseModel):
         if v not in VALID_DISPOSITIONS:
             raise ValueError(
                 f"disposition must be one of: {sorted(VALID_DISPOSITIONS)}, got '{v}'"
+            )
+        return v
+
+    @field_validator("lead_source")
+    @classmethod
+    def validate_lead_source(cls, v: str | None) -> str | None:
+        """Ensure lead_source, if provided, is one of the permitted values."""
+        if v is not None and v not in VALID_LEAD_SOURCES:
+            raise ValueError(
+                f"Invalid lead_source '{v}'. Must be one of: {sorted(VALID_LEAD_SOURCES)}"
             )
         return v
 
@@ -75,6 +88,7 @@ class LeadPinUpdate(BaseModel):
     contact_phone: str | None = Field(None, max_length=30, description="Homeowner phone")
     contact_email: str | None = Field(None, max_length=254, description="Homeowner email")
     estimated_value: float | None = Field(None, description="Estimated deal value")
+    lead_source: str | None = Field(None, description="How this lead was acquired")
 
     @field_validator("disposition")
     @classmethod
@@ -83,6 +97,16 @@ class LeadPinUpdate(BaseModel):
         if v is not None and v not in VALID_DISPOSITIONS:
             raise ValueError(
                 f"disposition must be one of: {sorted(VALID_DISPOSITIONS)}, got '{v}'"
+            )
+        return v
+
+    @field_validator("lead_source")
+    @classmethod
+    def validate_lead_source(cls, v: str | None) -> str | None:
+        """Ensure lead_source, if provided, is one of the permitted values."""
+        if v is not None and v not in VALID_LEAD_SOURCES:
+            raise ValueError(
+                f"Invalid lead_source '{v}'. Must be one of: {sorted(VALID_LEAD_SOURCES)}"
             )
         return v
 
@@ -129,6 +153,7 @@ class LeadPinResponse(BaseModel):
     contact_phone: str | None = Field(None, description="Homeowner phone")
     contact_email: str | None = Field(None, description="Homeowner email")
     estimated_value: float | None = Field(None, description="Estimated deal value")
+    lead_source: str | None = Field(None, description="How this lead was acquired")
 
     created_at: datetime = Field(..., description="Pin creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")

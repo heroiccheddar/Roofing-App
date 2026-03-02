@@ -5,7 +5,7 @@ import useAppStore from './stores/appStore'
 import { getAccount } from './api/client'
 import { DispositionPicker } from './components/LeadPinPanel'
 import { useCreateLeadPin } from './hooks/useLeadPins'
-import type { LeadPinDisposition } from './types/api'
+import type { LeadPinDisposition, LeadPinSource } from './types/api'
 
 function lazyRetry(factory: () => Promise<{ default: React.ComponentType }>) {
   return lazy(() =>
@@ -37,7 +37,7 @@ function PendingPinCreator() {
 
   if (!pendingPinLocation) return null
 
-  const handleConfirm = (disposition: LeadPinDisposition, notes: string, callbackDate?: string) => {
+  const handleConfirm = (disposition: LeadPinDisposition, notes: string, callbackDate?: string, contactName?: string, contactPhone?: string, contactEmail?: string, leadSource?: LeadPinSource) => {
     createPin.mutate(
       {
         lat: pendingPinLocation.lat,
@@ -48,6 +48,10 @@ function PendingPinCreator() {
         property_id: pendingPinLocation.property_id,
         lead_zone_id: pendingPinLocation.lead_zone_id,
         callback_date: callbackDate,
+        contact_name: contactName,
+        contact_phone: contactPhone,
+        contact_email: contactEmail,
+        lead_source: leadSource,
       },
       {
         onSuccess: () => {

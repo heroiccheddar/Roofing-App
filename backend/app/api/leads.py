@@ -64,6 +64,7 @@ def _pin_to_response(pin: LeadPin, roofer_name: str | None = None) -> LeadPinRes
         lon=pt.x,
         address=pin.address,
         disposition=pin.disposition,
+        lead_source=pin.lead_source,
         notes=pin.notes,
         callback_date=pin.callback_date,
         contact_name=pin.contact_name,
@@ -285,6 +286,7 @@ async def create_lead_pin(
         location=point_wkt,
         address=body.address,
         disposition=body.disposition,
+        lead_source=body.lead_source,
         notes=body.notes,
         callback_date=body.callback_date,
         contact_name=body.contact_name,
@@ -410,7 +412,7 @@ async def export_leads_csv(
     buf = io.StringIO()
     writer = csv.writer(buf)
     headers = [
-        "id", "address", "disposition", "contact_name", "contact_phone",
+        "id", "address", "disposition", "lead_source", "contact_name", "contact_phone",
         "contact_email", "estimated_value", "notes", "callback_date", "lat", "lon",
         "created_at", "updated_at",
     ]
@@ -424,6 +426,7 @@ async def export_leads_csv(
             str(pin.id),
             pin.address or "",
             pin.disposition,
+            pin.lead_source or "",
             pin.contact_name or "",
             pin.contact_phone or "",
             pin.contact_email or "",
@@ -518,6 +521,8 @@ async def update_lead_pin(
     # Apply updates — only change fields that were provided
     if body.disposition is not None:
         pin.disposition = body.disposition
+    if body.lead_source is not None:
+        pin.lead_source = body.lead_source
     if body.notes is not None:
         pin.notes = body.notes
     if body.callback_date is not None:

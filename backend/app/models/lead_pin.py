@@ -32,6 +32,14 @@ VALID_DISPOSITIONS = {
     "not_interested",
 }
 
+VALID_LEAD_SOURCES = {
+    "door_knock",
+    "referral",
+    "website",
+    "storm_canvass",
+    "other",
+}
+
 
 class LeadPin(Base):
     """A pin dropped by a roofer at a specific address on the map.
@@ -70,6 +78,9 @@ class LeadPin(Base):
 
     # Current disposition (sales funnel status)
     disposition = Column(String, nullable=False)
+
+    # Lead source — how this lead was acquired
+    lead_source = Column(String, nullable=True)
 
     # Free-form notes on the current status
     notes = Column(Text, nullable=True)

@@ -9,7 +9,8 @@ import {
 } from 'recharts'
 import useAppStore from '../stores/appStore'
 import { useAnalyticsDashboard } from '../hooks/useAnalytics'
-import type { LeaderboardPeriod } from '../types/api'
+import { LEAD_SOURCE_COLORS, LEAD_SOURCE_LABELS } from './ZoneDetailHelpers'
+import type { LeaderboardPeriod, SourceBreakdown } from '../types/api'
 
 type PeriodButton = { label: string; value: LeaderboardPeriod }
 
@@ -83,6 +84,7 @@ export default function AnalyticsPanel({ defaultExpanded = false }: AnalyticsPan
   const daily_activity = data?.daily_activity ?? []
   const funnel = data?.funnel ?? []
   const maxCount = funnel.length > 0 ? Math.max(...funnel.map((s) => s.count), 1) : 1
+  const source_breakdown: SourceBreakdown[] = data?.source_breakdown ?? []
 
   // Tick formatter: show day name for this_week, M/D for everything else
   function formatDateTick(dateStr: string): string {
@@ -298,6 +300,31 @@ export default function AnalyticsPanel({ defaultExpanded = false }: AnalyticsPan
                   )}
                 </div>
               </div>
+
+              {/* Lead Sources */}
+              {source_breakdown.length > 0 && (
+                <div style={{ marginTop: 20 }}>
+                  <h4 style={{ fontSize: 13, fontWeight: 700, margin: '0 0 10px', color: textPrimary }}>
+                    Lead Sources
+                  </h4>
+                  {source_breakdown.map((s) => {
+                    const maxSourceCount = Math.max(...source_breakdown.map((x) => x.count))
+                    const pct = maxSourceCount > 0 ? (s.count / maxSourceCount) * 100 : 0
+                    const color = LEAD_SOURCE_COLORS[s.source] || '#94a3b8'
+                    return (
+                      <div key={s.source} style={{ marginBottom: 6 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 2 }}>
+                          <span style={{ color: textSecondary }}>{LEAD_SOURCE_LABELS[s.source] || s.source}</span>
+                          <span style={{ fontWeight: 600, color: textPrimary }}>{s.count}</span>
+                        </div>
+                        <div style={{ height: 6, borderRadius: 3, background: darkMode ? '#1e293b' : '#e2e8f0' }}>
+                          <div style={{ height: '100%', borderRadius: 3, background: color, width: `${pct}%`, transition: 'width 0.3s' }} />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </>
           )}
         </div>

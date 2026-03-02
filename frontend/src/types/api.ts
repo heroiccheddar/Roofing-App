@@ -452,6 +452,13 @@ export type LeadPinDisposition =
   | 'contract_signed'
   | 'not_interested';
 
+export type LeadPinSource =
+  | 'door_knock'
+  | 'referral'
+  | 'website'
+  | 'storm_canvass'
+  | 'other';
+
 export interface LeadPinCreate {
   lat: number;
   lon: number;
@@ -465,6 +472,7 @@ export interface LeadPinCreate {
   contact_phone?: string;
   contact_email?: string;
   estimated_value?: number;
+  lead_source?: LeadPinSource;
 }
 
 export interface LeadPinUpdate {
@@ -475,6 +483,7 @@ export interface LeadPinUpdate {
   contact_phone?: string;
   contact_email?: string;
   estimated_value?: number;
+  lead_source?: LeadPinSource;
 }
 
 export interface LeadPinResponse {
@@ -493,6 +502,7 @@ export interface LeadPinResponse {
   contact_email?: string;
   estimated_value?: number;
   roofer_name?: string;
+  lead_source?: LeadPinSource;
   created_at: string;
   updated_at: string;
 }
@@ -659,6 +669,11 @@ export interface EstimateListResponse {
 }
 
 // ===== Analytics =====
+export interface SourceBreakdown {
+  source: string;
+  count: number;
+}
+
 export interface AnalyticsSummary {
   total_pins: number
   contracts_signed: number
@@ -684,6 +699,7 @@ export interface AnalyticsDashboardResponse {
   summary: AnalyticsSummary
   daily_activity: DailyActivity[]
   funnel: FunnelStage[]
+  source_breakdown: SourceBreakdown[]
 }
 
 // ===== Roof Data (Google Solar API) =====
