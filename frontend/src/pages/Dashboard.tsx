@@ -428,6 +428,19 @@ function Dashboard() {
             >
               Settings
             </button>
+            <button
+              onClick={() => navigate('/help')}
+              title="Help Guide"
+              style={{
+                background: 'none', border: '1px solid var(--border-primary)',
+                width: 28, height: 28, borderRadius: '50%',
+                fontSize: 13, fontWeight: 700, cursor: 'pointer', color: 'var(--text-secondary)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                padding: 0, flexShrink: 0,
+              }}
+            >
+              ?
+            </button>
           </div>
         </div>
 
