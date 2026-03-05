@@ -342,6 +342,10 @@ export async function getAlertHistory(): Promise<AlertHistoryResponse> {
   return apiFetch<AlertHistoryResponse>('/api/v1/alerts/history');
 }
 
+export async function markAlertOpened(alertId: string): Promise<void> {
+  await apiFetch(`/api/v1/alerts/${alertId}/opened`, { method: 'PATCH' });
+}
+
 /**
  * Connect to WebSocket alert stream.
  * Returns WebSocket instance that streams real-time zone alerts.

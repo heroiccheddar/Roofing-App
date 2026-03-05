@@ -10,6 +10,7 @@ import FollowUpQueue from '../components/FollowUpQueue'
 import TeamPanel from '../components/TeamPanel'
 import LeaderboardPanel from '../components/LeaderboardPanel'
 import AnalyticsPanel from '../components/AnalyticsPanel'
+import NotificationCenter from '../components/NotificationCenter'
 import useAppStore from '../stores/appStore'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { useDarkMode } from '../hooks/useDarkMode'
@@ -93,15 +94,18 @@ function Dashboard() {
           }}
         >
           <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>RoofIQ</span>
-          <button
-            onClick={() => navigate('/settings')}
-            style={{
-              background: 'none', border: '1px solid var(--border-primary)', borderRadius: 6,
-              padding: '4px 8px', fontSize: 13, cursor: 'pointer', color: 'var(--text-secondary)',
-            }}
-          >
-            Settings
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <NotificationCenter />
+            <button
+              onClick={() => navigate('/settings')}
+              style={{
+                background: 'none', border: '1px solid var(--border-primary)', borderRadius: 6,
+                padding: '4px 8px', fontSize: 13, cursor: 'pointer', color: 'var(--text-secondary)',
+              }}
+            >
+              Settings
+            </button>
+          </div>
         </div>
 
         {/* Content area — map, zones, or route */}
@@ -428,6 +432,7 @@ function Dashboard() {
             >
               Settings
             </button>
+            <NotificationCenter />
             <button
               onClick={() => navigate('/help')}
               title="Help Guide"

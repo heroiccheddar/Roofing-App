@@ -10,10 +10,10 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getAllLeadPins, updateLeadPin } from '../api/client'
-import { DISPOSITION_LABELS, DISPOSITION_COLORS } from '../components/ZoneDetailHelpers'
+import { DISPOSITION_LABELS, DISPOSITION_COLORS, LEAD_SOURCE_LABELS } from '../components/ZoneDetailHelpers'
 import useAppStore from '../stores/appStore'
 import { useMediaQuery } from '../hooks/useMediaQuery'
-import type { LeadPinDisposition, LeadPinResponse } from '../types/api'
+import type { LeadPinDisposition, LeadPinResponse, LeadPinSource } from '../types/api'
 
 // ===== Column order =====
 
@@ -25,6 +25,8 @@ const COLUMN_ORDER: LeadPinDisposition[] = [
   'contract_signed',
   'not_interested',
 ]
+
+const SOURCE_OPTIONS: (LeadPinSource | '')[] = ['', 'door_knock', 'referral', 'website', 'storm_canvass', 'other']
 
 // ===== Helpers =====
 
@@ -310,6 +312,8 @@ export default function PipelineBoard() {
   const isMobile = useMediaQuery('(max-width: 767px)')
 
   const [team, setTeam] = useState(false)
+  const [search, setSearch] = useState('')
+  const [sourceFilter, setSourceFilter] = useState<LeadPinSource | ''>('')
   const [dragOverColumn, setDragOverColumn] = useState<LeadPinDisposition | null>(null)
 
   // Drag state stored in refs via closure — avoids re-renders on every drag event
@@ -333,7 +337,23 @@ export default function PipelineBoard() {
     },
   })
 
-  // ===== Group pins by disposition =====
+  // ===== Filter & group pins =====
+
+  let filtered = data?.pins || []
+
+  if (search.trim()) {
+    const q = search.trim().toLowerCase()
+    filtered = filtered.filter((p) =>
+      (p.address || '').toLowerCase().includes(q) ||
+      (p.contact_name || '').toLowerCase().includes(q) ||
+      (p.contact_email || '').toLowerCase().includes(q) ||
+      (p.contact_phone || '').toLowerCase().includes(q)
+    )
+  }
+
+  if (sourceFilter) {
+    filtered = filtered.filter((p) => p.lead_source === sourceFilter)
+  }
 
   const columns: Record<LeadPinDisposition, LeadPinResponse[]> = {
     not_home: [],
@@ -344,11 +364,9 @@ export default function PipelineBoard() {
     not_interested: [],
   }
 
-  if (data?.pins) {
-    for (const pin of data.pins) {
-      if (pin.disposition in columns) {
-        columns[pin.disposition].push(pin)
-      }
+  for (const pin of filtered) {
+    if (pin.disposition in columns) {
+      columns[pin.disposition].push(pin)
     }
   }
 
@@ -470,20 +488,21 @@ export default function PipelineBoard() {
           Team View
         </label>
 
-        {/* Total count */}
+        {/* Total count (filtered) */}
         {data && (
           <span style={{
             fontSize: 12,
             color: textSecondary,
             flexShrink: 0,
           }}>
-            {data.total} pin{data.total !== 1 ? 's' : ''}
+            {filtered.length} pin{filtered.length !== 1 ? 's' : ''}
+            {filtered.length !== data.total && ` / ${data.total}`}
           </span>
         )}
 
-        {/* Total pipeline value */}
+        {/* Total pipeline value (filtered) */}
         {data && (() => {
-          const totalValue = data.pins.reduce((sum, p) => sum + (p.estimated_value || 0), 0)
+          const totalValue = filtered.reduce((sum, p) => sum + (p.estimated_value || 0), 0)
           return totalValue > 0 ? (
             <span style={{ fontSize: 12, color: '#22c55e', fontWeight: 600, flexShrink: 0 }}>
               {formatCurrency(totalValue)} pipeline
@@ -491,6 +510,91 @@ export default function PipelineBoard() {
           ) : null
         })()}
       </div>
+
+      {/* ===== Filter bar ===== */}
+      {!isLoading && !isError && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          padding: '10px 16px',
+          borderBottom: `1px solid ${borderColor}`,
+          background: headerBg,
+          flexShrink: 0,
+          flexWrap: 'wrap',
+        }}>
+          {/* Search input */}
+          <div style={{ position: 'relative', flex: isMobile ? '1 1 100%' : '0 1 220px' }}>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search address, contact..."
+              style={{
+                width: '100%',
+                padding: '6px 28px 6px 10px',
+                fontSize: 13,
+                border: `1px solid ${borderColor}`,
+                borderRadius: 6,
+                background: darkMode ? '#0f172a' : '#ffffff',
+                color: textPrimary,
+                outline: 'none',
+                minHeight: 34,
+              }}
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                style={{
+                  position: 'absolute',
+                  right: 6,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: textSecondary,
+                  fontSize: 14,
+                  padding: '2px 4px',
+                  lineHeight: 1,
+                }}
+              >
+                &times;
+              </button>
+            )}
+          </div>
+
+          {/* Source filter pills */}
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+            {SOURCE_OPTIONS.map((src) => {
+              const isActive = sourceFilter === src
+              const label = src ? (LEAD_SOURCE_LABELS[src] || src) : 'All'
+              return (
+                <button
+                  key={src || 'all'}
+                  onClick={() => setSourceFilter(src)}
+                  style={{
+                    fontSize: 11,
+                    padding: '4px 10px',
+                    borderRadius: 12,
+                    border: 'none',
+                    background: isActive
+                      ? (darkMode ? '#334155' : '#e2e8f0')
+                      : 'transparent',
+                    color: isActive ? textPrimary : textSecondary,
+                    fontWeight: isActive ? 700 : 500,
+                    cursor: 'pointer',
+                    minHeight: 28,
+                    transition: 'background 0.1s',
+                  }}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ===== Body ===== */}
       {isLoading && (
