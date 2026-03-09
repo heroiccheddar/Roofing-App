@@ -102,8 +102,10 @@ export default function FollowUpQueue() {
               </div>
             )}
             {!isLoading && count === 0 && (
-              <div style={{ padding: 16, fontSize: 13, color: textSecondary, textAlign: 'center' }}>
-                No follow-ups scheduled
+              <div style={{ padding: 16, fontSize: 13, color: textSecondary, textAlign: 'center', lineHeight: '1.6' }}>
+                No follow-ups scheduled.
+                <br />
+                <span style={{ fontSize: 12 }}>Set a callback date on any pin to queue it here.</span>
               </div>
             )}
             {pins.map((pin, i) => {

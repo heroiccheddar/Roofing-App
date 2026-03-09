@@ -64,7 +64,13 @@ function Login() {
   return (
     <div style={styles.container}>
       <div style={{ ...styles.card, padding: isMobile ? 20 : 32 }}>
-        <h1 style={styles.title}>RoofIQ</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+            <path d="M16 4L2 16h4v12h20V16h4L16 4z" fill="#2563eb"/>
+            <polygon points="18 10 14 17 17 17 15 24 22 15 18 15 20 10" fill="#fbbf24"/>
+          </svg>
+          <h1 style={styles.title}>RoofIQ</h1>
+        </div>
         <p style={styles.subtitle}>Roofing lead intelligence for professionals</p>
         <div style={styles.tabs}>
           <button
@@ -172,6 +178,23 @@ function Login() {
               : (mode === 'login' ? 'Sign In' : 'Create Account')}
           </button>
         </form>
+
+        {/* Feature highlights */}
+        <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid #e5e7eb' }}>
+          {[
+            ['Storm Alerts', 'Get notified when hail and wind events hit your service area'],
+            ['Property Intel', 'Roof measurements, age, and satellite data at every door'],
+            ['Pipeline Board', 'Track every lead from first knock to signed contract'],
+          ].map(([title, desc]) => (
+            <div key={title} style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+              <span style={{ color: '#2563eb', fontSize: 16, lineHeight: '1.4', flexShrink: 0 }}>&#10003;</span>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>{title}</div>
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 1 }}>{desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )

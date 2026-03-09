@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getAllLeadPins, updateLeadPin } from '../api/client'
 import { DISPOSITION_LABELS, DISPOSITION_COLORS, LEAD_SOURCE_LABELS } from '../components/ZoneDetailHelpers'
+import { showToast } from '../components/Toast'
 import useAppStore from '../stores/appStore'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import type { LeadPinDisposition, LeadPinResponse, LeadPinSource } from '../types/api'
@@ -332,8 +333,9 @@ export default function PipelineBoard() {
   const mutation = useMutation({
     mutationFn: ({ pinId, disposition }: { pinId: string; disposition: LeadPinDisposition }) =>
       updateLeadPin(pinId, { disposition }),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['pipeline-pins'] })
+      showToast(`Moved to ${DISPOSITION_LABELS[variables.disposition] || variables.disposition}`)
     },
   })
 

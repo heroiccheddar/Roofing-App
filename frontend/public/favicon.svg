@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <!-- Roof -->
+  <path d="M16 4L2 16h4v12h20V16h4L16 4z" fill="#2563eb"/>
+  <!-- Lightning bolt -->
+  <polygon points="18 10 14 17 17 17 15 24 22 15 18 15 20 10" fill="#fbbf24"/>
+</svg>

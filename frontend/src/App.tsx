@@ -4,6 +4,7 @@ import LoadingSpinner from './components/LoadingSpinner'
 import useAppStore from './stores/appStore'
 import { getAccount } from './api/client'
 import { DispositionPicker } from './components/LeadPinPanel'
+import ToastContainer, { showToast } from './components/Toast'
 import { useCreateLeadPin } from './hooks/useLeadPins'
 import type { LeadPinDisposition, LeadPinSource } from './types/api'
 
@@ -58,6 +59,7 @@ function PendingPinCreator() {
         onSuccess: () => {
           setPendingPinLocation(null)
           setIsPinDropMode(false)
+          showToast('Pin created')
         },
       },
     )
@@ -99,6 +101,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <ToastContainer />
       <PendingPinCreator />
       <Suspense fallback={<LoadingSpinner />}>
         <Routes>

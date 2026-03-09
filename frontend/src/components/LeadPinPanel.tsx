@@ -17,6 +17,7 @@ import { useLeadPins, useLeadPinDetail, useUpdateLeadPin, useDeleteLeadPin, useL
 import { useEstimates, useCreateEstimate, useUpdateEstimate, useDeleteEstimate } from '../hooks/useEstimates'
 import { DispositionBadge, DISPOSITION_COLORS, DISPOSITION_LABELS, LeadSourceBadge, LEAD_SOURCE_COLORS, LEAD_SOURCE_LABELS } from './ZoneDetailHelpers'
 import PhotoGallery from './PhotoGallery'
+import { showToast } from './Toast'
 import { useFetchRoofData } from '../hooks/useRoofData'
 import type { LeadPinDisposition, LeadPinSource, LeadPinResponse, EstimateResponse, LineItem } from '../types/api'
 
@@ -504,12 +505,12 @@ function EstimateBuilder({ pinId, propertyId, initial, onSaved, onCancel }: Esti
     if (initial) {
       updateEstimate.mutate(
         { estimateId: initial.id, data: { line_items: sanitizedItems, tax_rate: taxRate, notes: notes || undefined, status } },
-        { onSuccess: onSaved },
+        { onSuccess: () => { showToast('Estimate saved'); onSaved() } },
       )
     } else {
       createEstimate.mutate(
         { lead_pin_id: pinId, line_items: sanitizedItems, tax_rate: taxRate, notes: notes || undefined, status },
-        { onSuccess: onSaved },
+        { onSuccess: () => { showToast('Estimate created'); onSaved() } },
       )
     }
   }
@@ -1184,7 +1185,7 @@ function EstimatesSection({ pinId, propertyId, isOwner, branding }: EstimatesSec
       )}
       {!isLoading && estimates.length === 0 && !showBuilder && (
         <div style={{ fontSize: 12, color: textSecondary, padding: '4px 0' }}>
-          No estimates yet.
+          No estimates yet. Tap "New Estimate" to build one.
         </div>
       )}
       {!isLoading && estimates.length > 0 && (
@@ -1254,6 +1255,7 @@ function PinDetail({ pin, onBack }: PinDetailProps) {
       {
         onSuccess: () => {
           setShowUpdatePicker(false)
+          showToast('Pin updated')
         },
       },
     )
@@ -1263,6 +1265,7 @@ function PinDetail({ pin, onBack }: PinDetailProps) {
     deletePin.mutate(pin.id, {
       onSuccess: () => {
         setSelectedLeadPinId(null)
+        showToast('Pin deleted', 'info')
       },
     })
   }
@@ -1276,6 +1279,7 @@ function PinDetail({ pin, onBack }: PinDetailProps) {
           setNoteText('')
           setLogType('note')
           setShowLogNote(false)
+          showToast('Activity logged')
         },
       },
     )
